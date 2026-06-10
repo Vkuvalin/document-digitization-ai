@@ -1,0 +1,35 @@
+# Secrets / local runtime config
+.env
+.env.*
+!.env.example
+
+# Private Codex / agentic workflow overlay
+AGENTS.md
+.agents/
+.codex/
+docs/codex/
+
+# Python / uv
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+dist/
+build/
+*.egg-info/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Общее
+.pytest_tmp/
+data/
+logs/
+*.sqlite
+*.sqlite3
+*.db
