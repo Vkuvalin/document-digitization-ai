@@ -5,6 +5,7 @@ description = "Backend-first MVP for document digitization, OCR, and form/table 
 requires-python = ">=3.14"
 dependencies = [
     "pillow>=12.2.0",
+    "pydantic-settings>=2.14.1",
 ]
 
 [build-system]
