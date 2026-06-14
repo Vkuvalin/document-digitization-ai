@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from document_digitization_ai.core import (
     AppSettings,
+    ExtractionProviderName,
     MediaStagingBackend,
     ProviderSchemaMode,
     SettingsError,
@@ -21,6 +22,7 @@ SUPPORTED_ENV_NAMES = {
     "OPENROUTER_MODEL",
     "OPENROUTER_APP_TITLE",
     "OPENROUTER_HTTP_REFERER",
+    "EXTRACTION_PROVIDER",
     "LLM_TEMPERATURE",
     "LLM_TIMEOUT_SECONDS",
     "LLM_MAX_RETRIES",
@@ -59,6 +61,7 @@ def test_app_settings_loads_without_real_secrets(monkeypatch: pytest.MonkeyPatch
     assert settings.storage.data_dir == Path("data")
     assert settings.media_staging.backend is MediaStagingBackend.NONE
     assert settings.media_staging.require_imgbb_api_key() is None
+    assert settings.extraction.provider_name is ExtractionProviderName.FAKE
     assert settings.extraction.provider_schema_mode is ProviderSchemaMode.COMPACT
 
     with pytest.raises(SettingsError, match="OPENROUTER_API_KEY"):
@@ -82,6 +85,7 @@ def test_app_settings_reads_environment_into_grouped_settings(
     monkeypatch.setenv("OPENROUTER_MODEL", "openai/example-vision")
     monkeypatch.setenv("OPENROUTER_APP_TITLE", "test-app")
     monkeypatch.setenv("OPENROUTER_HTTP_REFERER", "")
+    monkeypatch.setenv("EXTRACTION_PROVIDER", "openrouter")
     monkeypatch.setenv("LLM_TEMPERATURE", "0.25")
     monkeypatch.setenv("LLM_TIMEOUT_SECONDS", "45")
     monkeypatch.setenv("LLM_MAX_RETRIES", "3")
@@ -98,6 +102,7 @@ def test_app_settings_reads_environment_into_grouped_settings(
     assert settings.openrouter.require_api_key() == "openrouter-real-key"
     assert settings.openrouter.http_referer is None
     assert "openrouter-real-key" not in repr(settings.openrouter)
+    assert settings.extraction.provider_name is ExtractionProviderName.OPENROUTER
     assert settings.extraction.require_model_name() == "openai/example-vision"
     assert settings.extraction.temperature == 0.25
     assert settings.extraction.timeout_seconds == 45
@@ -176,6 +181,16 @@ def test_app_settings_rejects_invalid_provider_schema_mode(
     monkeypatch.setenv("LLM_PROVIDER_SCHEMA_MODE", "strict")
 
     with pytest.raises(ValidationError, match="LLM_PROVIDER_SCHEMA_MODE"):
+        _app_settings_without_env_file()
+
+
+def test_app_settings_rejects_invalid_extraction_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_supported_env(monkeypatch)
+    monkeypatch.setenv("EXTRACTION_PROVIDER", "unsupported")
+
+    with pytest.raises(ValidationError, match="EXTRACTION_PROVIDER"):
         _app_settings_without_env_file()
 
 

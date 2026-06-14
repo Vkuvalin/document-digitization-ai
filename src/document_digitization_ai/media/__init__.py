@@ -1,4 +1,5 @@
 from document_digitization_ai.media.base import (
+    MediaStagingConfigurationError as MediaStagingConfigurationError,
     MediaStagingError as MediaStagingError,
     MediaStagingInput as MediaStagingInput,
     MediaStagingPort as MediaStagingPort,
@@ -14,6 +15,7 @@ from document_digitization_ai.media.local import (
 
 __all__ = [
     "LocalNoopMediaStagingService",
+    "MediaStagingConfigurationError",
     "MediaStagingError",
     "MediaStagingInput",
     "MediaStagingPort",

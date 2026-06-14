@@ -16,6 +16,17 @@
 - production deployment;
 - final export/rendering architecture.
 
+Текущая принятая backend foundation:
+
+- Stage 7 — provider input context boundary;
+- Stage 8 — media staging port with local/noop backend;
+- Stage 9 — extraction provider port and deterministic fake provider;
+- Stage 10 — provider-neutral prompt/schema package;
+- Stage 11 — backend-owned validation/reconstruction;
+- Stage 12 — local fake extraction workflow.
+
+Real provider transport, real media upload, Web/UI/API and Stage 13 implementation remain gated.
+
 ---
 
 ## 2. Архитектурная цель
@@ -403,12 +414,64 @@ This is a pragmatic MVP baseline, not provider lock-in.
 
 Provider-specific code must stay behind adapter boundaries. Backend workflow should talk to internal contracts, not raw provider response shapes.
 
+Provider integration must use a factory/registry rather than hardcoding OpenRouter as the only future provider.
+
+Minimal planned providers:
+
+- `fake`;
+- `openrouter`.
+
+The OpenRouter adapter should:
+
+- implement the existing extraction provider port;
+- build provider-specific request payloads outside provider-neutral contracts;
+- convert provider API responses into `ExtractionProviderResponse`;
+- expose typed provider errors;
+- avoid DB/session/lifecycle/result validation ownership.
+
 Future provider options must remain possible:
 
 - specialized OCR engines;
 - cloud Document AI services;
 - other multimodal providers;
 - hybrid OCR + LLM flows.
+
+### Provider errors, timeout and retry ownership
+
+Planned typed provider errors:
+
+- `ProviderConfigurationError`;
+- `ProviderAuthenticationError`;
+- `ProviderRateLimitError`;
+- `ProviderTimeoutError`;
+- `ProviderUnavailableError`;
+- `ProviderMalformedResponseError`;
+- `ProviderRejectedRequestError`.
+
+Provider adapters perform one call attempt and enforce timeout from settings. Workflow / attempt runner owns retry orchestration.
+
+Default `max_retries` should remain `2`.
+
+Retryable:
+
+- timeout;
+- transient network failure;
+- rate limit;
+- provider `5xx` / unavailable.
+
+Non-retryable:
+
+- auth/config error;
+- missing media;
+- invalid job lifecycle;
+- validation failure with no usable extraction content;
+- schema/contract mismatch caused by project code.
+
+### Structured output boundary
+
+Real provider integration should use structured output.
+
+Stage 10 schema package remains a provider-neutral descriptor. Provider-specific `response_format` mapping belongs in the provider adapter/mapping layer, not in Stage 10 contracts. OpenRouter-specific details must not pollute provider-neutral contracts.
 
 ---
 
@@ -435,6 +498,16 @@ Possible future staging representations:
 - another temporary hosting provider.
 
 The staging layer prepares provider-compatible input; it does not own document extraction logic.
+
+For the initial real-provider track, ImgBB/public URL staging is allowed only behind the current `MediaStagingPort` boundary.
+
+Rules:
+
+- provider workflow must not depend on ImgBB directly;
+- direct URLs and delete URLs are sensitive;
+- local filesystem paths must not leak into provider-facing prompt/request/logs;
+- normal tests must not call real ImgBB;
+- cleanup/expiry behavior should follow an explicit retention policy before production use.
 
 ---
 
@@ -613,6 +686,17 @@ Silent fallback is forbidden.
 
 If result is incomplete but usable, prefer `VALIDATION_PARTIAL` with explicit warnings over hard failure.
 
+Usable extraction content means at least one of:
+
+- non-empty `raw_text.text`;
+- at least one valid field;
+- at least one valid table;
+- at least one valid block.
+
+Warnings alone are not usable extraction content and must not create `ExtractionResult`.
+
+Low confidence should produce `VALIDATION_PARTIAL`, not hard failure. Missing confidence does not automatically mean low confidence.
+
 ---
 
 ## 14. SQLite and filesystem baseline
@@ -635,7 +719,91 @@ Potential SQLite data:
 
 This is a pragmatic local MVP decision, not a production storage commitment.
 
-DB/repository/session patterns must be designed in a separate approved implementation step.
+Basic DB/repository/session patterns already exist in the accepted local backend foundation.
+
+New storage design work is specifically needed for `extraction_attempts`, raw provider response persistence and real-provider transaction boundaries.
+
+### Extraction attempts and raw provider persistence
+
+Real provider integration should add a minimal future `extraction_attempts` concept/table.
+
+Purpose:
+
+- persist raw provider response for audit/debug/history/reuse;
+- track provider request metadata without storing full prompts by default;
+- track errors, timestamps and attempt status.
+
+Do not store raw provider response directly on `DocumentJob`. `DocumentJob` remains focused on lifecycle and final validated result.
+
+Raw provider response may contain sensitive document content and must not appear in normal logs or reports.
+
+Minimal attempt status:
+
+- `running`;
+- `succeeded`;
+- `failed`.
+
+Current MVP allows one active extraction workflow per job. Concurrent extraction for the same job is forbidden. Re-run, retry failed job and force reprocess are deferred.
+
+Persist minimal request metadata only:
+
+- provider;
+- model;
+- schema mode;
+- staged media kind/reference metadata;
+- provider options;
+- correlation/job id;
+- attempt id.
+
+Do not persist secrets. Do not persist full prompts by default.
+
+### Transaction boundary for real provider calls
+
+Do not hold a DB transaction open during real external provider calls.
+
+Planned flow:
+
+```text
+claim job / mark extraction running
+→ commit
+→ call provider outside long DB transaction
+→ open new transaction
+→ persist raw response / validation / final status
+```
+
+Application/runtime code may keep deterministic local/fake workflow simple, but real provider workflow must avoid long transactions around network calls.
+
+### Logging and privacy
+
+Minimal normal logs:
+
+- `job_id`;
+- `attempt_id`;
+- provider;
+- model;
+- status transitions;
+- validation outcome;
+- retry count;
+- duration.
+
+Normal logs must not include:
+
+- document content;
+- full prompt;
+- raw provider response;
+- image base64;
+- local filesystem paths;
+- secrets.
+
+Codex reports must not include user document content.
+
+### Testing and smoke boundary
+
+Normal pytest must not call real providers or real ImgBB.
+
+Provider and media tests should use mocked/fake transports.
+
+Real provider smoke belongs to a manual, env-gated script after the mocked provider path works. Web/UI/API remain deferred until the smoke path is stable.
 
 ---
 

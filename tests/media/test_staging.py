@@ -19,14 +19,15 @@ from document_digitization_ai.core import (
 from document_digitization_ai.db import DocumentJob
 from document_digitization_ai.media import (
     LocalNoopMediaStagingService,
+    MediaStagingConfigurationError,
     MediaStagingError,
     MediaStagingInput,
     MediaStagingResult,
     StagedMediaReference,
     StagedMediaReferenceKind,
-    UnsupportedMediaStagingBackendError,
     build_media_staging_service,
 )
+from document_digitization_ai.media.imgbb import ImgBBMediaStagingService
 from document_digitization_ai.providers import (
     attach_staged_media,
     build_provider_input_context,
@@ -93,21 +94,43 @@ def test_media_staging_factory_returns_local_noop_for_safe_default() -> None:
     assert isinstance(service, LocalNoopMediaStagingService)
 
 
-def test_media_staging_factory_rejects_unimplemented_imgbb_without_secret() -> None:
+def test_media_staging_factory_rejects_imgbb_without_secret() -> None:
     settings = MediaStagingSettings(backend=MediaStagingBackend.IMGBB)
 
-    with pytest.raises(UnsupportedMediaStagingBackendError, match="imgbb"):
+    with pytest.raises(MediaStagingConfigurationError, match="IMGBB_API_KEY"):
         build_media_staging_service(settings)
 
 
-def test_media_staging_factory_rejects_unimplemented_imgbb_with_key_like_secret() -> None:
+def test_media_staging_factory_builds_imgbb_with_key_like_secret() -> None:
     settings = MediaStagingSettings(
         backend=MediaStagingBackend.IMGBB,
         imgbb_api_key=SecretStr("imgbb-key-like-value"),
     )
 
-    with pytest.raises(UnsupportedMediaStagingBackendError, match="imgbb"):
+    service = build_media_staging_service(settings)
+
+    assert isinstance(service, ImgBBMediaStagingService)
+    assert "imgbb-key-like-value" not in repr(service)
+
+
+def test_media_staging_factory_rejects_imgbb_ttl_outside_supported_range() -> None:
+    settings = MediaStagingSettings(
+        backend=MediaStagingBackend.IMGBB,
+        imgbb_api_key=SecretStr("imgbb-key-like-value"),
+        ttl_seconds=30,
+    )
+
+    with pytest.raises(MediaStagingConfigurationError, match="MEDIA_STAGING_TTL_SECONDS"):
         build_media_staging_service(settings)
+
+
+def test_media_staging_factory_allows_none_backend_with_imgbb_specific_ttl() -> None:
+    settings = MediaStagingSettings(
+        backend=MediaStagingBackend.NONE,
+        ttl_seconds=30,
+    )
+
+    assert isinstance(build_media_staging_service(settings), LocalNoopMediaStagingService)
 
 
 @pytest.mark.asyncio

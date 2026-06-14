@@ -261,7 +261,7 @@ Important boundaries:
 
 ## 4. Current Repository Baseline
 
-At the start of the next implementation planning cycle, the repository should contain a backend-only local foundation:
+The current repository contains an accepted backend-only local foundation:
 
 - contracts;
 - diagnostics;
@@ -269,23 +269,33 @@ At the start of the next implementation planning cycle, the repository should co
 - async DB foundation;
 - filesystem artifact layout;
 - local document intake service;
-- local application runtime.
+- local application runtime;
+- `ProviderInputContext`;
+- `MediaStagingPort` with local/noop backend;
+- `ExtractionProviderPort` with deterministic fake provider;
+- prompt/schema packages;
+- provider output validation/reconstruction;
+- local fake extraction workflow through `RESULT_READY` and persisted `FAILED`.
 
-This baseline is sufficient to run local image intake without external API calls.
+This baseline is sufficient to run local image intake and deterministic fake extraction without external API calls.
 
-The next stages should build provider/media/extraction boundaries on top of this baseline without rewriting it.
+Accepted hardening after Stage 11/12 review:
+
+- warning-only provider payloads do not create `ExtractionResult`;
+- application fake extraction failures persist `FAILED` with `error_message`;
+- Web/UI/API remain deferred.
+
+The next implementation gate is Stage 13C. It requires explicit Command Center approval and must build on this baseline without rewriting it.
 
 ---
 
-## 5. Temporary Planning Note
+## 5. Current Planning Checkpoint
 
-The project is currently in a temporary planning cycle.
+The current planning checkpoint is Stage 13B docs/design integration.
 
-The immediate goal is to rewrite this iteration plan into a detailed operational plan for larger Codex task execution.
+Stage 13B records the accepted Stage 7–12 foundation, legacy reuse audit conclusions and Stage 13C–13F implementation sequence.
 
-After this plan is updated and approved, the project returns to the main implementation loop.
-
-The next Codex implementation tasks should be larger than earlier micro-iterations, but still bounded by explicit stages, gates, reports and stop conditions.
+The next implementation task must not start without explicit Stage 13C approval.
 
 ---
 
@@ -764,7 +774,11 @@ Codex must not infer permission to continue into later stages.
 |---|---|---|---|
 | Run 1 | Stage 7 → Stage 10 | Provider-neutral preparation: provider context, media staging boundary, fake provider port, prompt/schema package | Stop after Gate 10 |
 | Run 2 | Stage 11 → Stage 12 | Validation/reconstruction and deterministic backend fake extraction workflow | Stop after Gate 12 |
-| Gated | Stage 13 only | Real OpenRouter provider smoke | Requires explicit Command Center approval |
+| Docs/design | Stage 13B only | Architecture/docs integration for real provider readiness | Stop after docs/report validation |
+| Gated | Stage 13C only | Provider foundation, error taxonomy, attempt design and response_format mapper plan; no real network | Stop after Gate 13C |
+| Gated | Stage 13D only | ImgBB staging behind `MediaStagingPort` with mocked transport | Stop after Gate 13D |
+| Gated | Stage 13E only | OpenRouter adapter with mocked transport and raw response capture | Stop after Gate 13E |
+| Manual | Stage 13F only | Env-gated manual smoke with real OpenRouter + ImgBB | Not part of normal pytest |
 | Deferred | Web/UI | Web shell, upload UX, preview/result UI | Not part of this backend track |
 
 For each assigned stage, Codex must:
@@ -777,7 +791,7 @@ For each assigned stage, Codex must:
 
 Reports remain private/untracked unless Command Center explicitly approves otherwise.
 
-Stage 13 must not be executed unless the current task explicitly approves real provider work.
+Stage 13C–13F must not be executed unless the current task explicitly approves the specific substage.
 
 Web/UI must not be executed from this plan.
 
@@ -883,20 +897,84 @@ Primary purpose:
 
 Reach a deterministic backend-only end-to-end extraction flow.
 
-### Stage 13 — Real OpenRouter Provider Smoke Gate
+### Stage 13B — Architecture/docs integration for provider readiness
 
 Goal:
 
-Implement and/or manually smoke-test real OpenRouter/OpenAI-compatible provider integration.
+Encode accepted Stage 7–12 boundaries and legacy reuse audit conclusions into project docs before real provider implementation starts.
 
 External calls:
 
-- real provider calls require explicit Command Center approval;
-- real media upload requires separate explicit approval if needed.
+- no provider calls;
+- no media uploads;
+- no network calls;
+- no Web/API.
 
 Primary purpose:
 
-Validate real provider compatibility only after the fake backend flow is stable.
+Prevent real provider work from adding raw response persistence, retry, media staging, transaction or privacy shortcuts.
+
+### Stage 13C — Provider foundation, no real network
+
+Goal:
+
+Add provider foundation design/implementation in a bounded step without calling real providers.
+
+Expected scope:
+
+- settings/env fields;
+- provider factory skeleton;
+- provider error taxonomy;
+- extraction attempts minimal persistence design/implementation plan;
+- provider-specific `response_format` mapper plan;
+- deterministic tests plan.
+
+External calls:
+
+- no real provider calls;
+- no real media upload;
+- no network calls in pytest.
+
+### Stage 13D — ImgBB staging, mocked transport
+
+Goal:
+
+Implement ImgBB media staging behind `MediaStagingPort` using mocked/fake HTTP transport in tests.
+
+Rules:
+
+- provider workflow must not depend on ImgBB directly;
+- direct/delete URLs are sensitive;
+- no local filesystem paths may leak into provider-facing request/logs;
+- no real ImgBB call in normal pytest.
+
+### Stage 13E — OpenRouter adapter, mocked transport
+
+Goal:
+
+Implement OpenRouter-compatible extraction adapter behind the provider port using mocked transport.
+
+Expected scope:
+
+- structured output request builder;
+- provider-specific `response_format` mapper outside Stage 10 schema package;
+- response parser into `ExtractionProviderResponse`;
+- raw response capture for future attempt persistence;
+- typed provider errors;
+- no real OpenRouter call in normal pytest.
+
+### Stage 13F — Manual smoke script
+
+Goal:
+
+Provide an env-gated manual smoke path for real OpenRouter + ImgBB after mocked provider/media integration works.
+
+Rules:
+
+- user runs manually;
+- not part of normal pytest/CI;
+- requires real secrets through `.env` / settings;
+- no Web/UI/API.
 
 ### Deferred Track — Web/UI
 
@@ -914,9 +992,15 @@ unless Command Center starts the Web/UI track explicitly.
 
 ---
 
+Detailed Stage 7–12 sections below are retained as historical/completed stage definitions and gate records.
+
+They should be used for traceability, audits and future refactor constraints. They do not instruct Codex to reimplement Stage 7–12 unless a later task explicitly asks for a scoped refactor.
+
+---
+
 ## 9. Stage 7 — Provider Input Context Boundary
 
-Status: planned  
+Status: completed / accepted
 Track: backend-only  
 External provider calls: forbidden  
 External media upload: forbidden  
@@ -1353,7 +1437,7 @@ Before reporting Stage 7 complete, Codex must verify:
 
 ## 10. Stage 8 — Media Staging Port and Local/Noop Backend
 
-Status: planned  
+Status: completed / accepted
 Track: backend-only  
 Depends on: Stage 7 — Provider Input Context Boundary  
 External provider calls: forbidden  
@@ -1757,7 +1841,7 @@ Before reporting Stage 8 complete, Codex must verify:
 
 ## 11. Stage 9 — Extraction Provider Port and Fake Provider
 
-Status: planned  
+Status: completed / accepted
 Track: backend-only  
 Depends on: Stage 7 — Provider Input Context Boundary; Stage 8 — Media Staging Port and Local/Noop Backend  
 External provider calls: forbidden  
@@ -2199,7 +2283,7 @@ Before reporting Stage 9 complete, Codex must verify:
 
 ## 12. Stage 10 — Extraction Prompt and Schema Package
 
-Status: planned  
+Status: completed / accepted
 Track: backend-only  
 Depends on: Stage 7 — Provider Input Context Boundary; Stage 9 — Extraction Provider Port and Fake Provider  
 External provider calls: forbidden  
@@ -2666,7 +2750,7 @@ Before reporting Stage 10 complete, Codex must verify:
 
 ## 13. Stage 11 — Provider Response Validation and Result Reconstruction
 
-Status: planned  
+Status: completed / accepted
 Track: backend-only  
 Depends on: Stage 9 — Extraction Provider Port and Fake Provider; Stage 10 — Extraction Prompt and Schema Package  
 External provider calls: forbidden  
@@ -3158,7 +3242,7 @@ Before reporting Stage 11 complete, Codex must verify:
 
 ## 14. Stage 12 — Backend Extraction Workflow Orchestration
 
-Status: planned  
+Status: completed / accepted
 Track: backend-only  
 Depends on: Stage 7 — Provider Input Context Boundary; Stage 8 — Media Staging Port and Local/Noop Backend; Stage 9 — Extraction Provider Port and Fake Provider; Stage 10 — Extraction Prompt and Schema Package; Stage 11 — Provider Response Validation and Result Reconstruction  
 External provider calls: forbidden by default  
@@ -3715,13 +3799,13 @@ Before reporting Stage 12 complete, Codex must verify:
 
 ---
 
-## 15. Stage 13 — Real OpenRouter Provider Smoke Gate
+## 15. Stage 13 — Real Provider Integration Track
 
-Status: planned / gated  
+Status: split into Stage 13B–13F / gated
 Track: backend-only  
 Depends on: Stage 12 — Backend Extraction Workflow Orchestration  
-External provider calls: requires explicit Command Center approval  
-External media upload: requires separate explicit Command Center approval if needed  
+External provider calls: forbidden except explicit Stage 13F manual smoke approval
+External media upload: forbidden except explicit Stage 13F manual smoke approval
 Web/UI: forbidden  
 Primary risk: real provider behavior forcing premature architecture shortcuts
 
@@ -3729,15 +3813,127 @@ Primary risk: real provider behavior forcing premature architecture shortcuts
 
 ### 15.1 Objective
 
-Implement and/or manually smoke-test a real OpenRouter/OpenAI-compatible extraction provider path only after the deterministic fake backend extraction workflow is stable.
+Move from accepted Stage 7–12 fake/local backend workflow toward real provider integration through explicit sub-stages:
 
-This stage must answer one question:
+- Stage 13B — docs/design integration;
+- Stage 13C — provider foundation, no real network;
+- Stage 13D — ImgBB staging behind `MediaStagingPort`, mocked transport;
+- Stage 13E — OpenRouter adapter behind provider port, mocked transport;
+- Stage 13F — manual env-gated smoke with real OpenRouter + ImgBB.
+
+The track must answer one question:
 
 > Can the existing backend extraction boundaries support a real vision-capable provider without breaking architecture, validation, lifecycle, secrets, tests, or media boundaries?
 
-This stage is not automatically executable.
+This track is not automatically executable.
 
-Codex may start this stage only when the current task explicitly approves real provider integration or real provider smoke.
+Codex may start only the substage explicitly approved in the current task. Approval for Stage 13B docs work does not approve Stage 13C, 13D, 13E or 13F implementation.
+
+### 15.1A Stage 13B decisions encoded before implementation
+
+Stage 13B is docs/design-only. It records the accepted planning constraints below.
+
+Raw response and attempts:
+
+- persist raw provider response for audit/debug/history/reuse;
+- do not store raw provider response directly on `DocumentJob`;
+- introduce a minimal future `extraction_attempts` concept/table;
+- keep `DocumentJob` focused on lifecycle and final validated result;
+- treat raw response as potentially sensitive document content;
+- current MVP allows one active extraction workflow per job.
+
+Provider request persistence:
+
+- do not persist full prompts by default;
+- persist minimal request metadata only: provider, model, schema mode, staged media kind/reference metadata, provider options, correlation/job id, attempt id;
+- never persist secrets.
+
+Attempts:
+
+- attempt statuses: `running`, `succeeded`, `failed`;
+- attempts support raw response persistence, error tracking and timestamps.
+
+Transaction boundary:
+
+- do not hold DB transaction open during real external provider calls;
+- planned flow: claim job / mark extraction running → commit → call provider outside long transaction → open new transaction → persist raw response / validation / final status.
+
+Retry:
+
+- provider adapter performs one call attempt and raises typed provider errors;
+- workflow / attempt runner owns retry orchestration;
+- default `max_retries` should be `2`;
+- retryable: timeout, transient network failure, rate limit, provider `5xx` / unavailable;
+- non-retryable: auth/config, missing media, invalid lifecycle, validation failure with no usable extraction content, schema/contract mismatch caused by our code.
+
+Media:
+
+- ImgBB/public URL staging is initially acceptable because the legacy audit found reusable implementation patterns;
+- ImgBB must stay behind `MediaStagingPort`;
+- provider workflow must not depend on ImgBB directly;
+- direct URLs and delete URLs are sensitive;
+- local filesystem paths must not leak into provider-facing prompt/request/logs;
+- normal tests must not call real ImgBB.
+
+Structured output and provider boundary:
+
+- use structured output for real provider integration;
+- Stage 10 schema package remains provider-neutral;
+- provider-specific `response_format` mapping lives outside Stage 10 schema package;
+- use provider factory/registry with at least `fake` and `openrouter`;
+- OpenRouter adapter converts provider API response into `ExtractionProviderResponse`;
+- validation layer remains provider-agnostic.
+
+Privacy/logging/testing:
+
+- secrets only through `.env` / settings;
+- minimal logs only: job_id, attempt_id, provider, model, status transitions, validation outcome, retry count, duration;
+- no document content, full prompt, raw response, image base64 or local paths in normal logs;
+- no real provider or real ImgBB calls in normal pytest;
+- real provider smoke is manual and env-gated;
+- Web/UI/API remain deferred until smoke path works.
+
+Legacy audit use:
+
+- `docs/codex/reports/legacy_extraction_reuse_audit.md` is reference, not source of truth;
+- reusable/adaptable: OpenRouter/OpenAI-compatible client pattern, `response_format` builder, JSON parsing/validation adapters, LLM error taxonomy, ImgBB media staging backend, media cleanup/expiry pattern, image data URL helper, smoke script pattern, PDF renderer later;
+- do not directly reuse: antique prompts/schemas, antique inference flow, antique workflow state machine, Telegram-specific code, antique markdown renderers.
+
+### 15.1B Recommended Stage 13C-13F implementation sequence
+
+Stage 13C — provider foundation, no real network:
+
+- add settings/env fields needed for provider selection without requiring secrets in tests;
+- add provider factory/registry skeleton;
+- add provider error taxonomy;
+- plan or implement minimal `extraction_attempts` persistence in an approved bounded task;
+- plan provider-specific `response_format` mapper;
+- add deterministic tests without network.
+
+Stage 13D — ImgBB staging, mocked transport:
+
+- implement ImgBB backend behind `MediaStagingPort`;
+- use fake/mocked HTTP transport in tests;
+- prove provider workflow does not import or depend on ImgBB directly;
+- ensure direct/delete URLs are treated as sensitive;
+- ensure normal pytest never calls real ImgBB.
+
+Stage 13E — OpenRouter adapter, mocked transport:
+
+- implement structured output request builder;
+- implement provider-specific `response_format` mapper outside Stage 10 schema package;
+- parse provider API response into `ExtractionProviderResponse`;
+- capture raw response for attempt persistence;
+- map provider/API failures to typed errors;
+- ensure normal pytest never calls real OpenRouter.
+
+Stage 13F — manual smoke script:
+
+- env-gated manual script only;
+- user runs it manually;
+- uses real OpenRouter + ImgBB only when secrets/settings are present;
+- not part of normal pytest or CI;
+- Web/UI/API remain deferred.
 
 ---
 
@@ -3786,10 +3982,15 @@ If explicit approval is missing, Codex must stop.
 
 Preferred package area:
 
-- `src/document_digitization_ai/extraction/`
+- Stage 13B: `docs/`;
+- Stage 13C: `src/document_digitization_ai/extraction/`, `src/document_digitization_ai/providers/`, settings/docs/tests as approved;
+- Stage 13D: `src/document_digitization_ai/media/`;
+- Stage 13E: `src/document_digitization_ai/extraction/`;
+- Stage 13F: `scripts/` or another explicitly approved manual-smoke location.
 
 Expected files may include:
 
+- `docs/codex/reports/stage_13b_architecture_integration_plan.md`
 - `src/document_digitization_ai/extraction/openrouter.py`
 - `src/document_digitization_ai/extraction/transport.py` if a small transport abstraction is useful
 - `tests/extraction/test_openrouter_provider.py`
@@ -3806,7 +4007,31 @@ Codex may choose different names if they preserve the same boundaries.
 
 ### 15.5 Allowed Changes
 
-Codex may:
+Allowed changes depend on the explicitly approved Stage 13 substage.
+
+Stage 13B may:
+
+- update approved docs only;
+- create the required private Codex report;
+- inspect current Stage 7–12 boundaries and legacy audit report.
+
+Stage 13C may:
+
+- add settings/env fields needed for provider selection;
+- add provider factory/registry skeleton;
+- add typed provider error taxonomy;
+- design or implement minimal `extraction_attempts` persistence only if the task explicitly approves persistence work;
+- add provider-specific `response_format` mapper plan or isolated mapper skeleton with no network;
+- add deterministic tests.
+
+Stage 13D may:
+
+- implement ImgBB media staging behind `MediaStagingPort`;
+- add fake/mocked HTTP transport tests;
+- add sensitivity handling for direct/delete URL metadata;
+- keep real ImgBB calls out of normal pytest.
+
+Stage 13E may:
 
 - implement OpenRouter-compatible provider adapter behind the existing provider port;
 - add provider-specific request mapping;
@@ -3818,6 +4043,12 @@ Codex may:
 - add optional manual smoke helper only if explicitly approved;
 - update source-of-truth docs only when needed for implementation continuity;
 - create a private/untracked stage report.
+
+Stage 13F may:
+
+- add an env-gated manual smoke script;
+- call real OpenRouter + ImgBB only when the user runs the script manually with configured secrets;
+- keep the smoke script outside normal pytest/CI.
 
 Codex may add a lightweight HTTP dependency only if explicitly approved by Command Center or already present in the project.
 
@@ -4019,31 +4250,81 @@ Manual smoke must not become required for CI/unit validation.
 
 ### 15.14 Concrete Implementation Steps
 
-Codex should proceed in this order:
+Codex should proceed by explicitly approved substage.
 
-1. Confirm Command Center approval for real provider stage.
-2. Inspect existing provider port/request/response types.
-3. Inspect prompt/schema package.
-4. Inspect validation layer.
-5. Inspect settings secret helper behavior.
-6. Decide whether a small transport abstraction is needed.
-7. Implement OpenRouter provider adapter behind existing provider port.
-8. Implement request mapping from existing prompt/schema/context objects.
-9. Implement response parsing into existing provider response type.
-10. Implement typed provider error mapping.
-11. Add deterministic tests with fake/mocked transport.
-12. Add no-secret import tests.
-13. Add no-network pytest protection if practical.
-14. Run validation commands.
-15. Create private stage report using `report-writing`.
-16. Stop at Gate 13 for Command Center review.
-17. Perform manual smoke only if separately approved.
+Stage 13B:
+
+1. Read required project docs and legacy audit report.
+2. Inspect current Stage 7–12 boundaries only as needed for architecture accuracy.
+3. Update `PROJECT_CONTEXT.md`, `ARCHITECTURE_DRAFT.md`, and `ITERATION_PLAN.md`.
+4. Create `docs/codex/reports/stage_13b_architecture_integration_plan.md`.
+5. Run docs-only validation.
+
+Stage 13C:
+
+1. Confirm explicit Command Center approval for Stage 13C.
+2. Inspect provider port/request/response types, settings and repository boundaries.
+3. Add provider factory/registry skeleton and typed provider error taxonomy.
+4. Design or implement minimal `extraction_attempts` only if persistence work is explicitly approved.
+5. Add response_format mapper plan or isolated provider mapper skeleton with no network.
+6. Add deterministic tests.
+7. Stop at Gate 13C.
+
+Stage 13D:
+
+1. Confirm explicit Command Center approval for Stage 13D.
+2. Inspect `MediaStagingPort` and current local/noop backend.
+3. Implement ImgBB backend behind the port with fake/mocked transport tests.
+4. Verify no real ImgBB call in normal pytest.
+5. Stop at Gate 13D.
+
+Stage 13E:
+
+1. Confirm explicit Command Center approval for Stage 13E.
+2. Inspect provider port/request/response, prompt/schema package, validation layer and settings secret helpers.
+3. Implement OpenRouter provider adapter behind existing provider port.
+4. Implement structured output request mapping and response parsing.
+5. Capture raw provider response in provider response / attempt-facing structures.
+6. Implement typed provider error mapping.
+7. Add deterministic tests with fake/mocked transport and no-secret import tests.
+8. Stop at Gate 13E.
+
+Stage 13F:
+
+1. Confirm explicit Command Center approval for Stage 13F manual smoke.
+2. Add or run env-gated manual smoke script.
+3. Keep script outside normal pytest/CI.
+4. Record smoke result in private report if requested.
 
 ---
 
 ### 15.15 Test Requirements
 
-Required test cases:
+Required test cases depend on approved substage.
+
+Stage 13B:
+
+- docs changed only in approved files;
+- no source/test/dependency/schema/provider implementation changes;
+- no network calls;
+- `git diff --check` passes.
+
+Stage 13C:
+
+- provider factory can select `fake` without secrets;
+- provider factory rejects unsupported providers explicitly;
+- typed provider errors are importable and classified;
+- attempt design/persistence, if implemented, does not store raw response on `DocumentJob`;
+- response_format mapper plan or skeleton does not pollute Stage 10 provider-neutral schema package.
+
+Stage 13D:
+
+- ImgBB backend stays behind `MediaStagingPort`;
+- tests use fake/mocked HTTP transport;
+- direct/delete URL metadata is treated as sensitive;
+- normal pytest does not call real ImgBB.
+
+Stage 13E:
 
 - OpenRouter provider can be instantiated/imported without real secrets when no real call is made;
 - real-call execution path fails before network when API key is missing/placeholder;
@@ -4059,6 +4340,13 @@ Required test cases:
 - provider adapter does not update job lifecycle;
 - pytest does not perform network calls.
 
+Stage 13F:
+
+- manual smoke script handles missing secrets explicitly;
+- script is not collected by pytest;
+- smoke output is private/untracked;
+- no Web/UI/API is introduced.
+
 Preferred test setup:
 
 - fake transport object;
@@ -4070,15 +4358,24 @@ Preferred test setup:
 
 ### 15.16 Validation Commands
 
-Codex must run:
+For Stage 13B docs-only work, Codex should run:
+
+```bash
+git diff --check
+git status --short
+```
+
+For Stage 13C–13E implementation work, Codex must run:
 
 ```bash
 uv run ruff check .
 uv run pyright
 uv run pytest
-````
+```
 
-If any command cannot be run, Codex must report why and stop at Gate 13.
+Stage 13F manual smoke validation is explicitly env-gated and not part of normal pytest.
+
+If any required command for the approved substage cannot be run, Codex must report why and stop at the matching gate.
 
 ---
 
@@ -4089,35 +4386,58 @@ After completing this stage, Codex must create a private/untracked report using 
 Default report path:
 
 ```text
-docs/codex/reports/stage_13_real_openrouter_provider.md
+Stage 13B: docs/codex/reports/stage_13b_architecture_integration_plan.md
+Stage 13C: docs/codex/reports/stage_13c_provider_foundation.md
+Stage 13D: docs/codex/reports/stage_13d_imgbb_staging_mocked.md
+Stage 13E: docs/codex/reports/stage_13e_openrouter_adapter_mocked.md
+Stage 13F: docs/codex/reports/stage_13f_manual_smoke.md
 ```
 
 The report should include:
 
 * task boundary;
-* approval status for real provider work;
+* approval status for the active Stage 13 substage;
 * files changed;
-* provider adapter design;
-* transport design;
-* request mapping behavior;
-* media input assumption;
-* prompt/schema integration;
-* response parsing behavior;
+* decisions encoded or implementation boundary;
+* provider/media/attempt/transaction/privacy implications where relevant;
 * automated validation command results;
 * whether manual smoke was run;
 * what was intentionally not implemented;
 * risks and open questions;
-* whether Gate 13 is ready for Command Center review.
+* whether the active Stage 13 gate is ready for Command Center review.
 
 The report is not source of truth and must not be committed unless Command Center explicitly approves.
 
 ---
 
-### 15.18 Gate 13 — Real Provider Review
+### 15.18 Gate 13 — Substage Review
 
-Gate 13 is passed only if all conditions are true:
+Gate 13B is passed only if all conditions are true:
 
-* Command Center explicitly approved this stage;
+* project docs encode the accepted Stage 13B decisions;
+* source/test/dependency/schema/provider implementation was not changed;
+* no network calls were made;
+* required Stage 13B report exists;
+* docs-only validation passed.
+
+Gate 13C is passed only if all conditions are true:
+
+* provider factory/error taxonomy direction is implemented or documented as approved by task scope;
+* attempts design keeps raw provider response off `DocumentJob`;
+* no real provider/media calls exist;
+* deterministic tests pass;
+* private stage report exists.
+
+Gate 13D is passed only if all conditions are true:
+
+* ImgBB backend stays behind `MediaStagingPort`;
+* tests use mocked/fake transport;
+* no real ImgBB call occurs in pytest;
+* sensitive URL handling is explicit;
+* private stage report exists.
+
+Gate 13E is passed only if all conditions are true:
+
 * OpenRouter-compatible adapter implements existing provider port;
 * adapter does not own DB/session/lifecycle;
 * adapter does not bypass validation layer;
@@ -4132,15 +4452,16 @@ Gate 13 is passed only if all conditions are true:
 * validation commands pass;
 * private stage report exists.
 
-Manual smoke success is not required unless Command Center explicitly made it part of this gate.
+Gate 13F is passed only if Command Center explicitly required and accepted a manual smoke result.
 
 ---
 
 ### 15.19 Stop Conditions
 
-Codex must stop during this stage if:
+Codex must stop during the active Stage 13 substage if:
 
-* Command Center approval for real provider work is absent;
+* explicit approval for that exact substage is absent;
+* Stage 13B docs work would require source/test/dependency/schema/provider implementation;
 * provider request requires public URL but no approved staging backend exists;
 * provider requires unsupported image representation;
 * provider schema mode conflicts with prompt/schema package;
@@ -4158,7 +4479,41 @@ When stopping, Codex must create a private report explaining the blocker and pro
 
 ### 15.20 Completion Checklist
 
-Before reporting Stage 13 complete, Codex must verify:
+Before reporting a Stage 13 substage complete, Codex must verify the checklist for that substage.
+
+Stage 13B:
+
+* [ ] required docs read;
+* [ ] `PROJECT_CONTEXT.md` updated;
+* [ ] `ARCHITECTURE_DRAFT.md` updated;
+* [ ] `ITERATION_PLAN.md` updated;
+* [ ] `stage_13b_architecture_integration_plan.md` created;
+* [ ] no source/test/dependency/schema/provider implementation changed;
+* [ ] no network call made;
+* [ ] `git diff --check` passed;
+* [ ] `git status --short` checked.
+
+Stage 13C:
+
+* [ ] explicit Command Center approval exists;
+* [ ] provider factory/error taxonomy scope is implemented or documented as approved;
+* [ ] attempts design keeps raw provider response separate from `DocumentJob`;
+* [ ] no real provider/media/network calls exist;
+* [ ] deterministic tests added;
+* [ ] validation commands passed;
+* [ ] private stage report created.
+
+Stage 13D:
+
+* [ ] explicit Command Center approval exists;
+* [ ] ImgBB stays behind `MediaStagingPort`;
+* [ ] tests use mocked/fake transport;
+* [ ] no pytest real ImgBB calls exist;
+* [ ] sensitive direct/delete URL handling is documented or tested;
+* [ ] validation commands passed;
+* [ ] private stage report created.
+
+Stage 13E:
 
 * [ ] explicit Command Center approval exists;
 * [ ] OpenRouter-compatible provider adapter created;
@@ -4176,9 +4531,13 @@ Before reporting Stage 13 complete, Codex must verify:
 * [ ] media requirement is documented;
 * [ ] no Web/API code added;
 * [ ] deterministic tests added;
-* [ ] `uv run ruff check .` passed;
-* [ ] `uv run pyright` passed;
-* [ ] `uv run pytest` passed;
-* [ ] private stage report created;
-* [ ] Gate 13 is ready for Command Center review.
+* [ ] validation commands passed;
+* [ ] private stage report created.
 
+Stage 13F:
+
+* [ ] explicit Command Center approval exists;
+* [ ] manual smoke is env-gated;
+* [ ] manual smoke is not part of pytest/CI;
+* [ ] smoke output is private/untracked;
+* [ ] private smoke report created if requested.

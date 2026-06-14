@@ -23,6 +23,11 @@ class MediaStagingBackend(StrEnum):
     IMGBB = "imgbb"
 
 
+class ExtractionProviderName(StrEnum):
+    FAKE = "fake"
+    OPENROUTER = "openrouter"
+
+
 class ProviderSchemaMode(StrEnum):
     COMPACT = "compact"
     FULL = "full"
@@ -103,6 +108,7 @@ class OpenRouterSettings(BaseModel):
 class ExtractionSettings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
+    provider_name: ExtractionProviderName = ExtractionProviderName.FAKE
     model: str = "change_me"
     temperature: float = Field(default=0.1, ge=0.0, le=2.0)
     timeout_seconds: int = Field(default=60, gt=0)
@@ -251,6 +257,10 @@ class AppSettings(BaseSettings):
     )
 
     llm_model: str = Field(default="change_me", validation_alias="OPENROUTER_MODEL")
+    extraction_provider_name: ExtractionProviderName = Field(
+        default=ExtractionProviderName.FAKE,
+        validation_alias="EXTRACTION_PROVIDER",
+    )
     llm_temperature: float = Field(default=0.1, validation_alias="LLM_TEMPERATURE")
     llm_timeout_seconds: int = Field(
         default=60,
@@ -365,6 +375,7 @@ class AppSettings(BaseSettings):
     @property
     def extraction(self) -> ExtractionSettings:
         return ExtractionSettings(
+            provider_name=self.extraction_provider_name,
             model=self.llm_model,
             temperature=self.llm_temperature,
             timeout_seconds=self.llm_timeout_seconds,

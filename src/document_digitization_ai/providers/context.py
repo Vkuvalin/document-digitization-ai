@@ -7,7 +7,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 from document_digitization_ai.contracts import DocumentModeHint, JobStatus
-from document_digitization_ai.core import ExtractionSettings, ProviderSchemaMode, SettingsError
+from document_digitization_ai.core import (
+    ExtractionProviderName,
+    ExtractionSettings,
+    ProviderSchemaMode,
+    SettingsError,
+)
 
 if TYPE_CHECKING:
     from document_digitization_ai.db import DocumentJob
@@ -132,9 +137,13 @@ class ProviderExtractionRuntimeSettings:
     provider_schema_mode: ProviderSchemaMode
     structured_outputs_enabled: bool
     structured_outputs_require_parameters: bool
+    provider_name: ExtractionProviderName = ExtractionProviderName.FAKE
 
     def __post_init__(self) -> None:
         _ensure_non_empty_text(self.model, "model")
+        if not isinstance(self.provider_name, ExtractionProviderName):
+            msg = "provider_name must be an ExtractionProviderName value"
+            raise ValueError(msg)
         if not isinstance(self.provider_schema_mode, ProviderSchemaMode):
             msg = "provider_schema_mode must be a ProviderSchemaMode value"
             raise ValueError(msg)
@@ -144,6 +153,7 @@ class ProviderExtractionRuntimeSettings:
 
     def to_dict(self) -> dict[str, object]:
         return {
+            "provider_name": self.provider_name.value,
             "model": self.model,
             "temperature": self.temperature,
             "timeout_seconds": self.timeout_seconds,
@@ -294,6 +304,7 @@ def _build_extraction_runtime_settings(
         structured_outputs_require_parameters=(
             extraction_settings.structured_outputs_require_parameters
         ),
+        provider_name=extraction_settings.provider_name,
     )
 
 

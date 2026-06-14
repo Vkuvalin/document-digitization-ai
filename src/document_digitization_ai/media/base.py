@@ -13,6 +13,10 @@ class MediaStagingError(RuntimeError):
     """Base error for media staging failures."""
 
 
+class MediaStagingConfigurationError(MediaStagingError):
+    """Raised when media staging settings are invalid for the selected backend."""
+
+
 class UnsupportedMediaStagingBackendError(MediaStagingError):
     """Raised when selected staging backend has no approved implementation."""
 

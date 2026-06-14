@@ -1,6 +1,10 @@
 from document_digitization_ai.extraction.fake import (
     FakeExtractionProvider as FakeExtractionProvider,
 )
+from document_digitization_ai.extraction.factory import (
+    ExtractionProviderFactory as ExtractionProviderFactory,
+    build_extraction_provider as build_extraction_provider,
+)
 from document_digitization_ai.extraction.provider import (
     ExtractionProviderError as ExtractionProviderError,
     ExtractionProviderPort as ExtractionProviderPort,
@@ -8,6 +12,21 @@ from document_digitization_ai.extraction.provider import (
     ExtractionProviderRequestError as ExtractionProviderRequestError,
     ExtractionProviderResponse as ExtractionProviderResponse,
     FakeExtractionProviderError as FakeExtractionProviderError,
+    ProviderAuthenticationError as ProviderAuthenticationError,
+    ProviderConfigurationError as ProviderConfigurationError,
+    ProviderMalformedResponseError as ProviderMalformedResponseError,
+    ProviderRateLimitError as ProviderRateLimitError,
+    ProviderRejectedRequestError as ProviderRejectedRequestError,
+    ProviderTimeoutError as ProviderTimeoutError,
+    ProviderUnavailableError as ProviderUnavailableError,
+)
+from document_digitization_ai.extraction.openrouter import (
+    DefaultOpenRouterHTTPTransport as DefaultOpenRouterHTTPTransport,
+    OpenRouterExtractionProvider as OpenRouterExtractionProvider,
+    OpenRouterHTTPResponseData as OpenRouterHTTPResponseData,
+    OpenRouterHTTPTransport as OpenRouterHTTPTransport,
+    build_openrouter_chat_completion_payload as build_openrouter_chat_completion_payload,
+    build_openrouter_response_format as build_openrouter_response_format,
 )
 from document_digitization_ai.extraction.prompts import (
     ExtractionPromptError as ExtractionPromptError,
@@ -30,6 +49,7 @@ from document_digitization_ai.extraction.validation import (
 
 __all__ = [
     "ExtractionPromptPackage",
+    "ExtractionProviderFactory",
     "ExtractionPromptError",
     "ExtractionProviderError",
     "ExtractionProviderPort",
@@ -42,10 +62,24 @@ __all__ = [
     "ExtractionValidationIssue",
     "FakeExtractionProvider",
     "FakeExtractionProviderError",
+    "DefaultOpenRouterHTTPTransport",
+    "OpenRouterExtractionProvider",
+    "OpenRouterHTTPResponseData",
+    "OpenRouterHTTPTransport",
+    "ProviderAuthenticationError",
+    "ProviderConfigurationError",
+    "ProviderMalformedResponseError",
     "ProviderOutputValidationOutcome",
     "ProviderOutputValidationResult",
+    "ProviderRateLimitError",
+    "ProviderRejectedRequestError",
+    "ProviderTimeoutError",
+    "ProviderUnavailableError",
     "build_extraction_prompt_package",
+    "build_extraction_provider",
     "build_extraction_schema_package",
+    "build_openrouter_chat_completion_payload",
+    "build_openrouter_response_format",
     "image_diagnostics_from_payload",
     "validate_provider_output",
 ]

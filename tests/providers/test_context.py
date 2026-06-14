@@ -50,6 +50,7 @@ def test_build_provider_input_context_from_intake_completed_job(
     assert context.extraction.temperature == 0.2
     assert context.extraction.timeout_seconds == 45
     assert context.extraction.max_retries == 1
+    assert context.extraction.provider_name.value == "fake"
     assert context.extraction.provider_schema_mode is ProviderSchemaMode.FULL
 
 

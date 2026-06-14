@@ -17,6 +17,34 @@ class ExtractionProviderRequestError(ExtractionProviderError):
     """Raised when provider request data is invalid at the boundary."""
 
 
+class ProviderConfigurationError(ExtractionProviderError):
+    """Raised when provider settings or implementation availability are invalid."""
+
+
+class ProviderAuthenticationError(ExtractionProviderError):
+    """Raised when provider authentication fails."""
+
+
+class ProviderRateLimitError(ExtractionProviderError):
+    """Raised when a provider rate limit blocks extraction."""
+
+
+class ProviderTimeoutError(ExtractionProviderError):
+    """Raised when a provider call exceeds the configured timeout."""
+
+
+class ProviderUnavailableError(ExtractionProviderError):
+    """Raised when a provider is temporarily unavailable."""
+
+
+class ProviderMalformedResponseError(ExtractionProviderError):
+    """Raised when a provider response cannot be parsed into the provider boundary."""
+
+
+class ProviderRejectedRequestError(ExtractionProviderError):
+    """Raised when a provider rejects the request payload."""
+
+
 class FakeExtractionProviderError(ExtractionProviderError):
     """Raised by the deterministic fake provider when configured to fail."""
 

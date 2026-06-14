@@ -16,11 +16,21 @@ STAGE_07_12_RUNTIME_MODULES = (
 )
 
 EXTRACTION_RUNTIME_MODULES = (
+    Path("src/document_digitization_ai/extraction/factory.py"),
     Path("src/document_digitization_ai/extraction/provider.py"),
     Path("src/document_digitization_ai/extraction/fake.py"),
     Path("src/document_digitization_ai/extraction/prompts.py"),
     Path("src/document_digitization_ai/extraction/schema.py"),
     Path("src/document_digitization_ai/extraction/validation.py"),
+)
+
+OPENROUTER_TRANSPORT_MODULES = (
+    Path("src/document_digitization_ai/extraction/openrouter.py"),
+)
+
+EXTRACTION_MODULES_WITH_OPENROUTER = (
+    *EXTRACTION_RUNTIME_MODULES,
+    *OPENROUTER_TRANSPORT_MODULES,
 )
 
 FORBIDDEN_NETWORK_MODULES = (
@@ -32,6 +42,11 @@ FORBIDDEN_NETWORK_MODULES = (
     "http.client",
 )
 
+FORBIDDEN_PROVIDER_SDK_MODULES = (
+    "openai",
+    "openrouter",
+)
+
 
 def test_stage_07_12_modules_do_not_import_network_clients() -> None:
     for module_path in STAGE_07_12_RUNTIME_MODULES:
@@ -40,16 +55,64 @@ def test_stage_07_12_modules_do_not_import_network_clients() -> None:
             assert not _matches_any_import(imported_module, FORBIDDEN_NETWORK_MODULES)
 
 
-def test_extraction_modules_do_not_import_db_or_application_layers() -> None:
+def test_extraction_provider_foundation_does_not_import_network_clients() -> None:
     for module_path in EXTRACTION_RUNTIME_MODULES:
+        imported_modules = _imported_module_names(module_path)
+        for imported_module in imported_modules:
+            assert not _matches_any_import(imported_module, FORBIDDEN_NETWORK_MODULES)
+
+
+def test_only_openrouter_transport_module_imports_stdlib_network_clients() -> None:
+    for module_path in OPENROUTER_TRANSPORT_MODULES:
+        imported_modules = _imported_module_names(module_path)
+
+        assert "urllib.request" in imported_modules
+        for imported_module in imported_modules:
+            assert not _matches_any_import(
+                imported_module,
+                ("requests", "httpx", "aiohttp"),
+            )
+
+
+def test_extraction_provider_foundation_does_not_import_provider_sdks() -> None:
+    for module_path in EXTRACTION_MODULES_WITH_OPENROUTER:
+        imported_modules = _imported_module_names(module_path)
+        for imported_module in imported_modules:
+            assert not _matches_any_import(
+                imported_module,
+                FORBIDDEN_PROVIDER_SDK_MODULES,
+            )
+
+
+def test_extraction_modules_do_not_import_db_or_application_layers() -> None:
+    for module_path in EXTRACTION_MODULES_WITH_OPENROUTER:
         imported_modules = _imported_module_names(module_path)
         for imported_module in imported_modules:
             assert not imported_module.startswith("document_digitization_ai.db")
             assert not imported_module.startswith("document_digitization_ai.application")
 
 
+def test_extraction_workflow_and_provider_modules_do_not_import_imgbb_directly() -> None:
+    module_paths = (
+        Path("src/document_digitization_ai/services/extraction_workflow.py"),
+        *EXTRACTION_MODULES_WITH_OPENROUTER,
+    )
+
+    for module_path in module_paths:
+        imported_modules = _imported_module_names(module_path)
+        assert "document_digitization_ai.media.imgbb" not in imported_modules
+
+
+def test_stage_10_schema_package_does_not_import_openrouter_mapping() -> None:
+    imported_modules = _imported_module_names(
+        Path("src/document_digitization_ai/extraction/schema.py")
+    )
+
+    assert not any("openrouter" in imported_module for imported_module in imported_modules)
+
+
 def test_extraction_modules_do_not_import_contracts_provider_context() -> None:
-    for module_path in EXTRACTION_RUNTIME_MODULES:
+    for module_path in EXTRACTION_MODULES_WITH_OPENROUTER:
         tree = ast.parse(module_path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if not isinstance(node, ast.ImportFrom):
@@ -58,6 +121,19 @@ def test_extraction_modules_do_not_import_contracts_provider_context() -> None:
                 continue
             imported_names = {alias.name for alias in node.names}
             assert "ProviderInputContext" not in imported_names
+
+
+def test_services_application_and_db_do_not_import_openrouter_adapter_directly() -> None:
+    module_paths = (
+        Path("src/document_digitization_ai/services/extraction_workflow.py"),
+        Path("src/document_digitization_ai/application/runtime.py"),
+        Path("src/document_digitization_ai/db/repository.py"),
+        Path("src/document_digitization_ai/db/models.py"),
+    )
+
+    for module_path in module_paths:
+        imported_modules = _imported_module_names(module_path)
+        assert "document_digitization_ai.extraction.openrouter" not in imported_modules
 
 
 def _imported_module_names(module_path: Path) -> tuple[str, ...]:

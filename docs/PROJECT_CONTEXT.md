@@ -15,7 +15,7 @@
 
 ## Текущий статус репозитория
 
-Проект находится на стадии раннего bootstrap / architecture planning.
+Проект находится на стадии раннего backend foundation.
 
 Уже есть:
 
@@ -23,12 +23,19 @@
 - Python/uv baseline;
 - Python `3.14`;
 - `pyproject.toml` с dev-инструментами `ruff`, `pyright`, `pytest`, `pytest-asyncio`;
-- пустой список product dependencies;
+- local SQLite/filesystem persistence baseline;
+- deterministic image diagnostics;
+- provider input context boundary;
+- media staging port with local/noop backend;
+- extraction provider port with deterministic fake provider;
+- prompt/schema package boundary;
+- backend-owned provider output validation/reconstruction;
+- local fake extraction workflow through `RESULT_READY` / `FAILED`;
 - `.env.example` с runtime placeholders для OpenRouter/LLM и локального SQLite URL;
 - начальный Python package skeleton;
 - локальный private Codex overlay, исключённый из Git.
 
-Product code ещё не реализован.
+Stage 7–12 backend foundation считается принятой текущей базой. Web/UI/API, real provider transport, real media upload and deployment остаются отложенными.
 
 ## Принятые v0-решения
 
@@ -36,7 +43,7 @@ Product code ещё не реализован.
 
 - первый happy path обрабатывает одно изображение через Web UI;
 - основной demonstrable sample — смешанная рукописная/печатная форма или документ;
-- первый UI-вектор — простой локальный Web UI;
+- первый UI-вектор — простой локальный Web UI, но Web/UI/API не запускаются до отдельного gate после backend smoke path;
 - backend остаётся UI-agnostic и должен быть переиспользуем будущими carriers;
 - backend владеет processing job lifecycle, validation, storage и provider orchestration;
 - пользователь может выбрать document mode hint, но этот hint не является истиной;
@@ -48,6 +55,64 @@ Product code ещё не реализован.
 - SQLite + filesystem допустимы как local MVP foundation.
 
 Эти решения являются v0 baseline для разработки MVP. Они не являются production commitment.
+
+## Stage 13B: решения для реальной provider-интеграции
+
+Следующий implementation track должен добавлять реальную provider-интеграцию без нарушения Stage 7–12 boundaries.
+
+Принятые проектные решения для следующих стадий:
+
+- raw provider response нужно сохранять для audit/debug/history/reuse, но не на `DocumentJob`;
+- для raw response и ошибок планируется минимальный `extraction_attempts` concept/table;
+- `DocumentJob` остаётся владельцем lifecycle и final validated result, а не хранилищем всех provider attempts;
+- raw response может содержать чувствительный документный контент;
+- full prompts не сохраняются по умолчанию;
+- сохраняется только минимальная request metadata: provider, model, schema mode, staged media kind/reference metadata, provider options, correlation/job id, attempt id;
+- secrets никогда не сохраняются;
+- текущий MVP допускает только один active extraction workflow на job;
+- минимальные attempt statuses: `running`, `succeeded`, `failed`;
+- real external provider call не должен выполняться внутри долгой DB transaction;
+- planned transaction flow: claim job / mark extraction running → commit → provider call outside long transaction → new transaction → persist raw response, validation and final status;
+- provider adapter выполняет один call attempt и поднимает typed provider errors;
+- retry orchestration принадлежит workflow / attempt runner;
+- default `max_retries` остаётся `2`;
+- retryable errors: timeout, transient network failure, rate limit, provider 5xx / unavailable;
+- non-retryable errors: auth/config, missing media, invalid lifecycle, validation failure без usable extraction content, schema/contract mismatch caused by our code.
+
+Media strategy:
+
+- ImgBB/public URL staging допустим как первый real media backend, потому что legacy audit нашёл reusable implementation pattern;
+- ImgBB должен оставаться за `MediaStagingPort`;
+- provider workflow не должен зависеть от ImgBB напрямую;
+- direct URLs и delete URLs считаются sensitive;
+- local filesystem path не должен попадать в provider-facing prompt/request/logs;
+- normal tests не должны вызывать real ImgBB.
+
+Provider and structured output strategy:
+
+- real provider integration должна использовать structured output;
+- Stage 10 schema package остаётся provider-neutral descriptor;
+- provider-specific `response_format` mapping живёт вне Stage 10 schema package;
+- OpenRouter-specific mapping не должен загрязнять provider-neutral contracts;
+- provider factory/registry должен поддерживать минимум `fake` и `openrouter`;
+- OpenRouter adapter конвертирует provider API response в `ExtractionProviderResponse`;
+- validation layer остаётся provider-agnostic.
+
+Error/privacy/testing policy:
+
+- планируемые typed provider errors: `ProviderConfigurationError`, `ProviderAuthenticationError`, `ProviderRateLimitError`, `ProviderTimeoutError`, `ProviderUnavailableError`, `ProviderMalformedResponseError`, `ProviderRejectedRequestError`;
+- provider adapter применяет timeout из settings, workflow решает retry;
+- `VALIDATION_PARTIAL` может доходить до `RESULT_READY`;
+- low confidence делает validation outcome `PARTIAL`, но missing confidence не означает low confidence автоматически;
+- concurrent extraction для одного job запрещён;
+- re-run / retry failed job / force reprocess отложены;
+- secrets только через `.env` / settings;
+- normal logs: job_id, attempt_id, provider, model, status transitions, validation outcome, retry count, duration;
+- normal logs не содержат document content, full prompt, raw response, image base64 или local paths;
+- normal pytest не вызывает real providers или real ImgBB;
+- real provider smoke должен быть manual и env-gated.
+
+Legacy reuse audit является reference, not source of truth. Reusable/adaptable patterns: OpenRouter/OpenAI-compatible client, response_format builder, JSON parsing/validation adapters, LLM error taxonomy, ImgBB media staging backend, media cleanup/expiry pattern, image data URL helper, smoke script pattern, PDF renderer later. Не переиспользовать напрямую: antique prompts/schemas, antique inference flow, antique workflow state machine, Telegram-specific code, antique markdown renderers.
 
 ## Начальный MVP-фокус
 
@@ -517,16 +582,16 @@ Web UI должна показывать table-like results как читаем�
 - human correction workflow;
 - ground-truth evaluation workflow.
 
-## Открытые вопросы перед implementation
+## Открытые вопросы перед следующими implementation gates
 
-Перед первым product code нужно уточнить:
+Перед Stage 13C–13F нужно уточнить:
 
-- какие поля из `ExtractionResult v0` становятся обязательными в code schema;
-- какой минимальный API shape нужен для happy path;
-- какая минимальная `ImageDiagnostics` реализация достаточна без over-engineering;
-- какой Web stack использовать;
-- как именно хранить original/derived artifacts;
-- нужен ли background processing или достаточно sync/async request flow для MVP;
-- как формировать first prompt и provider response schema;
-- какие sample images использовать для manual smoke/review;
+- какой минимальный `extraction_attempts` schema/scope нужен для raw response, request metadata, timestamps и errors;
+- какой retention/redaction policy нужен для raw provider response, direct/delete URLs и staged media metadata;
+- какие provider settings/env fields нужны для Stage 13C без real network calls;
+- какой mocked transport shape нужен для ImgBB и OpenRouter tests;
+- какие sample images допустимы для manual env-gated smoke/review без попадания user content в reports/logs;
+- какой manual smoke success criterion нужен перед Web/UI/API track;
+- какие artifacts/export нужны позже: JSON only, sidecar files, PDF/DOCX/XLSX/CSV или staged approach;
+- какой Web stack/API shape нужен после backend smoke path;
 - когда создавать `PROJECT_MAP.md`.
