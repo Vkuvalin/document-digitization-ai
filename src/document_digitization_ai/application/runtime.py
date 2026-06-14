@@ -12,7 +12,15 @@ from document_digitization_ai.db import (
     create_async_session_factory,
     create_database_schema,
 )
-from document_digitization_ai.services import DocumentIntakeResult, DocumentIntakeService
+from document_digitization_ai.extraction import FakeExtractionProvider
+from document_digitization_ai.media import build_media_staging_service
+from document_digitization_ai.services import (
+    DocumentExtractionWorkflowError,
+    DocumentExtractionWorkflowResult,
+    DocumentExtractionWorkflowService,
+    DocumentIntakeResult,
+    DocumentIntakeService,
+)
 from document_digitization_ai.storage import JobArtifactLayout
 
 
@@ -54,6 +62,23 @@ class LocalDocumentApplication:
                 raise
             return result
 
+    async def run_fake_extraction(
+        self,
+        job_id: str,
+    ) -> DocumentExtractionWorkflowResult:
+        async with self._session_factory() as session:
+            service = self._build_extraction_workflow_service(session)
+            try:
+                result = await service.run(job_id)
+                await session.commit()
+            except DocumentExtractionWorkflowError:
+                await session.commit()
+                raise
+            except Exception:
+                await session.rollback()
+                raise
+            return result
+
     async def close(self) -> None:
         await self._engine.dispose()
 
@@ -66,4 +91,17 @@ class LocalDocumentApplication:
             diagnostics_config=(
                 self._settings.image_diagnostics.to_diagnostics_config()
             ),
+        )
+
+    def _build_extraction_workflow_service(
+        self,
+        session: AsyncSession,
+    ) -> DocumentExtractionWorkflowService:
+        return DocumentExtractionWorkflowService(
+            repository=DocumentJobRepository(session),
+            extraction_settings=self._settings.extraction,
+            media_staging_service=build_media_staging_service(
+                self._settings.media_staging
+            ),
+            extraction_provider=FakeExtractionProvider(),
         )
