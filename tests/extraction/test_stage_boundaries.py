@@ -62,26 +62,45 @@ def test_extraction_provider_foundation_does_not_import_network_clients() -> Non
             assert not _matches_any_import(imported_module, FORBIDDEN_NETWORK_MODULES)
 
 
-def test_only_openrouter_transport_module_imports_stdlib_network_clients() -> None:
+def test_openrouter_sdk_module_does_not_import_raw_network_clients() -> None:
     for module_path in OPENROUTER_TRANSPORT_MODULES:
         imported_modules = _imported_module_names(module_path)
 
-        assert "urllib.request" in imported_modules
         for imported_module in imported_modules:
             assert not _matches_any_import(
                 imported_module,
-                ("requests", "httpx", "aiohttp"),
+                FORBIDDEN_NETWORK_MODULES,
             )
 
 
 def test_extraction_provider_foundation_does_not_import_provider_sdks() -> None:
-    for module_path in EXTRACTION_MODULES_WITH_OPENROUTER:
+    for module_path in EXTRACTION_RUNTIME_MODULES:
         imported_modules = _imported_module_names(module_path)
         for imported_module in imported_modules:
             assert not _matches_any_import(
                 imported_module,
                 FORBIDDEN_PROVIDER_SDK_MODULES,
             )
+
+
+def test_only_openrouter_adapter_imports_openai_sdk() -> None:
+    for module_path in OPENROUTER_TRANSPORT_MODULES:
+        imported_modules = _imported_module_names(module_path)
+        assert "openai" in imported_modules
+
+    for module_path in (
+        Path("src/document_digitization_ai/services/extraction_workflow.py"),
+        Path("src/document_digitization_ai/application/runtime.py"),
+        Path("src/document_digitization_ai/db/repository.py"),
+        Path("src/document_digitization_ai/db/models.py"),
+        Path("src/document_digitization_ai/extraction/schema.py"),
+        Path("src/document_digitization_ai/extraction/validation.py"),
+        Path("src/document_digitization_ai/media/base.py"),
+        Path("src/document_digitization_ai/media/local.py"),
+    ):
+        imported_modules = _imported_module_names(module_path)
+        for imported_module in imported_modules:
+            assert not _matches_any_import(imported_module, ("openai",))
 
 
 def test_extraction_modules_do_not_import_db_or_application_layers() -> None:

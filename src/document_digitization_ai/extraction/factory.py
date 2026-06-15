@@ -15,20 +15,22 @@ from document_digitization_ai.extraction.provider import (
 )
 
 if TYPE_CHECKING:
-    from document_digitization_ai.extraction.openrouter import OpenRouterHTTPTransport
+    from document_digitization_ai.extraction.openrouter import (
+        OpenRouterChatCompletionClient,
+    )
 
 
 @dataclass(frozen=True, slots=True)
 class ExtractionProviderFactory:
     settings: ExtractionSettings
     openrouter_settings: OpenRouterSettings | None = None
-    openrouter_transport: OpenRouterHTTPTransport | None = None
+    openrouter_client: OpenRouterChatCompletionClient | None = None
 
     def build(self) -> ExtractionProviderPort:
         return build_extraction_provider(
             self.settings,
             openrouter_settings=self.openrouter_settings,
-            openrouter_transport=self.openrouter_transport,
+            openrouter_client=self.openrouter_client,
         )
 
 
@@ -36,7 +38,7 @@ def build_extraction_provider(
     settings: ExtractionSettings,
     *,
     openrouter_settings: OpenRouterSettings | None = None,
-    openrouter_transport: OpenRouterHTTPTransport | None = None,
+    openrouter_client: OpenRouterChatCompletionClient | None = None,
 ) -> ExtractionProviderPort:
     if not isinstance(settings, ExtractionSettings):
         msg = "settings must be an ExtractionSettings value"
@@ -54,7 +56,7 @@ def build_extraction_provider(
 
         return OpenRouterExtractionProvider.from_settings(
             openrouter_settings,
-            transport=openrouter_transport,
+            client=openrouter_client,
         )
     msg = f"Unsupported extraction provider: {provider_name}"
     raise ProviderConfigurationError(msg)

@@ -19,7 +19,6 @@ from document_digitization_ai.extraction import (
     ExtractionProviderRequest,
     FakeExtractionProvider,
     OpenRouterExtractionProvider,
-    OpenRouterHTTPResponseData,
     ProviderAuthenticationError,
     ProviderConfigurationError,
     ProviderMalformedResponseError,
@@ -30,7 +29,7 @@ from document_digitization_ai.extraction import (
     build_extraction_prompt_package,
     build_extraction_provider,
     build_extraction_schema_package,
-    build_openrouter_chat_completion_payload,
+    build_openrouter_chat_completion_kwargs,
     build_openrouter_response_format,
 )
 from document_digitization_ai.media import (
@@ -48,7 +47,7 @@ from document_digitization_ai.providers import (
 _UNSET = object()
 
 
-def test_openrouter_request_builder_uses_public_url_without_private_data(
+def test_openrouter_kwargs_use_public_url_without_private_data(
     tmp_path: Path,
 ) -> None:
     image_path = _write_image_bytes(tmp_path / "original.jpg")
@@ -66,24 +65,43 @@ def test_openrouter_request_builder_uses_public_url_without_private_data(
         ),
     )
 
-    payload = build_openrouter_chat_completion_payload(request)
-    serialized_payload = json.dumps(payload, sort_keys=True)
-    user_content = _user_content(payload)
+    kwargs = build_openrouter_chat_completion_kwargs(
+        request,
+        app_title="test-app",
+        http_referer="https://example.test",
+    )
+    serialized_kwargs = json.dumps(kwargs, sort_keys=True)
+    user_content = _user_content(kwargs)
+    extra_headers = cast(Mapping[str, object], kwargs["extra_headers"])
 
-    assert payload["model"] == "openai/test-vision"
-    assert payload["temperature"] == 0.2
-    assert payload["stream"] is False
+    assert kwargs["model"] == "openai/test-vision"
+    assert kwargs["temperature"] == 0.2
+    assert kwargs["timeout"] == 45
     assert user_content[0]["type"] == "text"
+    user_text = cast(str, user_content[0]["text"])
+    assert (
+        "Provider output top-level sections: document, raw_text, fields, tables, "
+        "blocks, warnings, metadata."
+    ) in user_text
+    assert "Expected top-level sections: document, image_diagnostics" not in user_text
+    assert (
+        "use image_diagnostics only as guidance and do not include these sections "
+        "in provider output"
+    ) in user_text
     assert user_content[1]["type"] == "image_url"
     image_url = cast(Mapping[str, object], user_content[1]["image_url"])
     assert image_url["url"] == "https://i.ibb.co/example/staged.jpg"
-    assert str(image_path) not in serialized_payload
-    assert "delete-private-token" not in serialized_payload
-    assert "private_cleanup" not in serialized_payload
-    assert "fake-openrouter-key" not in serialized_payload
+    assert image_url["detail"] == "high"
+    assert extra_headers["HTTP-Referer"] == "https://example.test"
+    assert extra_headers["X-Title"] == "test-app"
+    assert str(image_path) not in serialized_kwargs
+    assert "delete-private-token" not in serialized_kwargs
+    assert "private_cleanup" not in serialized_kwargs
+    assert "fake-openrouter-key" not in serialized_kwargs
+    assert "Authorization" not in serialized_kwargs
 
 
-def test_openrouter_request_builder_adds_provider_require_parameters_when_enabled(
+def test_openrouter_kwargs_add_provider_require_parameters_when_enabled(
     tmp_path: Path,
 ) -> None:
     image_path = _write_image_bytes(tmp_path / "original.jpg")
@@ -102,19 +120,20 @@ def test_openrouter_request_builder_adds_provider_require_parameters_when_enable
         ),
     )
 
-    payload = build_openrouter_chat_completion_payload(request)
-    serialized_payload = json.dumps(payload, sort_keys=True)
+    kwargs = build_openrouter_chat_completion_kwargs(request)
+    serialized_kwargs = json.dumps(kwargs, sort_keys=True)
 
-    provider_payload = cast(Mapping[str, object], payload["provider"])
+    extra_body = cast(Mapping[str, object], kwargs["extra_body"])
+    provider_payload = cast(Mapping[str, object], extra_body["provider"])
     assert provider_payload["require_parameters"] is True
-    assert str(image_path) not in serialized_payload
-    assert "fake-openrouter-key" not in serialized_payload
-    assert "delete_url" not in serialized_payload
-    assert "delete-private-token" not in serialized_payload
-    assert "private-delete" not in serialized_payload
+    assert str(image_path) not in serialized_kwargs
+    assert "fake-openrouter-key" not in serialized_kwargs
+    assert "delete_url" not in serialized_kwargs
+    assert "delete-private-token" not in serialized_kwargs
+    assert "private-delete" not in serialized_kwargs
 
 
-def test_openrouter_request_builder_omits_provider_require_parameters_when_disabled(
+def test_openrouter_kwargs_omit_provider_require_parameters_when_disabled(
     tmp_path: Path,
 ) -> None:
     request = _provider_request(
@@ -122,19 +141,19 @@ def test_openrouter_request_builder_omits_provider_require_parameters_when_disab
         structured_outputs_require_parameters=False,
     )
 
-    payload = build_openrouter_chat_completion_payload(request)
+    kwargs = build_openrouter_chat_completion_kwargs(request)
 
-    assert "provider" not in payload
+    assert "extra_body" not in kwargs
 
 
 @pytest.mark.asyncio
-async def test_openrouter_provider_rejects_disabled_structured_outputs_before_transport_call(
+async def test_openrouter_provider_rejects_disabled_structured_outputs_before_client_call(
     tmp_path: Path,
 ) -> None:
-    transport = FakeOpenRouterHTTPTransport(response=_openrouter_response())
+    client = FakeOpenRouterChatCompletionClient(response=_openrouter_response())
     provider = OpenRouterExtractionProvider.from_settings(
         _openrouter_settings(),
-        transport=transport,
+        client=client,
     )
     request = _provider_request(
         tmp_path / "original.jpg",
@@ -142,12 +161,12 @@ async def test_openrouter_provider_rejects_disabled_structured_outputs_before_tr
     )
 
     with pytest.raises(ProviderConfigurationError, match="structured outputs"):
-        build_openrouter_chat_completion_payload(request)
+        build_openrouter_chat_completion_kwargs(request)
 
     with pytest.raises(ProviderConfigurationError, match="structured outputs"):
         await provider.extract(request)
 
-    assert transport.calls == []
+    assert client.calls == []
 
 
 def test_openrouter_response_format_maps_provider_neutral_schema(
@@ -155,10 +174,11 @@ def test_openrouter_response_format_maps_provider_neutral_schema(
 ) -> None:
     request = _provider_request(tmp_path / "original.jpg")
     assert request.schema_package is not None
+    package_payload = request.schema_package.to_dict()
+    schema_required = cast(list[str], package_payload["required_sections"])
+    assert "image_diagnostics" in schema_required
 
-    response_format = build_openrouter_response_format(
-        request.schema_package.to_dict()
-    )
+    response_format = build_openrouter_response_format(package_payload)
 
     assert response_format["type"] == "json_schema"
     json_schema = cast(Mapping[str, object], response_format["json_schema"])
@@ -168,16 +188,144 @@ def test_openrouter_response_format_maps_provider_neutral_schema(
     required = cast(list[str], schema["required"])
     properties = cast(Mapping[str, object], schema["properties"])
     assert schema["type"] == "object"
-    assert "raw_text" in required
-    assert "fields" in properties
+    assert schema["additionalProperties"] is False
+    assert properties
+    assert set(required) == {
+        "document",
+        "raw_text",
+        "fields",
+        "tables",
+        "blocks",
+        "warnings",
+        "metadata",
+    }
+    assert set(properties) == set(required)
+    assert "image_diagnostics" not in required
+    assert "image_diagnostics" not in properties
+    json.dumps(response_format, sort_keys=True)
+
+
+def test_openrouter_response_format_preserves_diagnostics_context_for_prompt(
+    tmp_path: Path,
+) -> None:
+    request = _provider_request(tmp_path / "original.jpg")
+    assert request.prompt_package is not None
+    assert request.schema_package is not None
+    assert request.context.diagnostics.diagnostics_present is True
+
+    schema_payload = request.schema_package.to_dict()
+    prompt_payload = request.prompt_package.to_dict()
+    schema_required = cast(list[str], schema_payload["required_sections"])
+    diagnostics_guidance = cast(list[str], prompt_payload["diagnostics_guidance"])
+
+    assert "image_diagnostics" in schema_required
+    assert any("diagnostics" in item.lower() for item in diagnostics_guidance)
+
+
+def test_openrouter_response_format_uses_explicit_nested_section_schemas(
+    tmp_path: Path,
+) -> None:
+    request = _provider_request(tmp_path / "original.jpg")
+    assert request.schema_package is not None
+
+    schema = _provider_response_schema(request.schema_package.to_dict())
+    properties = _properties(schema)
+
+    _assert_explicit_object_schema(properties["document"])
+    _assert_explicit_object_schema(properties["raw_text"])
+    _assert_explicit_object_schema(properties["metadata"])
+    assert "image_diagnostics" not in properties
+    assert "text" in _properties(properties["raw_text"])
+    assert "schema_version" in _properties(properties["metadata"])
+
+    for section in ("fields", "tables", "blocks", "warnings"):
+        section_schema = cast(Mapping[str, object], properties[section])
+        assert section_schema["type"] == "array"
+        _assert_explicit_object_schema(section_schema["items"])
+
+    field_properties = _properties(_array_items(properties["fields"]))
+    table_properties = _properties(_array_items(properties["tables"]))
+    block_properties = _properties(_array_items(properties["blocks"]))
+    warning_properties = _properties(_array_items(properties["warnings"]))
+
+    assert {"label", "value", "confidence", "source", "warnings"} <= set(
+        field_properties
+    )
+    assert {"title", "columns", "rows", "confidence", "warnings"} <= set(
+        table_properties
+    )
+    assert {"type", "text", "order", "level", "confidence", "warnings"} <= set(
+        block_properties
+    )
+    assert {"code", "message", "severity", "target"} <= set(warning_properties)
+
+
+def test_openrouter_response_format_has_no_shallow_known_object_sections(
+    tmp_path: Path,
+) -> None:
+    request = _provider_request(tmp_path / "original.jpg")
+    assert request.schema_package is not None
+
+    schema = _provider_response_schema(request.schema_package.to_dict())
+    properties = _properties(schema)
+
+    known_object_sections = (
+        properties["document"],
+        properties["raw_text"],
+        properties["metadata"],
+        _array_items(properties["fields"]),
+        _array_items(properties["tables"]),
+        _array_items(properties["blocks"]),
+        _array_items(properties["warnings"]),
+    )
+    for section_schema in known_object_sections:
+        assert section_schema != {"type": "object"}
+        _assert_explicit_object_schema(section_schema)
+
+
+def test_openrouter_response_format_compact_and_full_modes_affect_provider_schema(
+    tmp_path: Path,
+) -> None:
+    compact_request = _provider_request(
+        tmp_path / "compact.jpg",
+        provider_schema_mode=ProviderSchemaMode.COMPACT,
+    )
+    full_request = _provider_request(
+        tmp_path / "full.jpg",
+        provider_schema_mode=ProviderSchemaMode.FULL,
+    )
+    assert compact_request.schema_package is not None
+    assert full_request.schema_package is not None
+
+    compact_schema = _provider_response_schema(compact_request.schema_package.to_dict())
+    full_schema = _provider_response_schema(full_request.schema_package.to_dict())
+
+    assert compact_schema != full_schema
+    assert _contains_key(full_schema, "description")
+    assert not _contains_key(compact_schema, "description")
+    assert _properties(compact_schema).keys() == _properties(full_schema).keys()
+
+
+def test_openrouter_response_format_consumes_schema_package_payload(
+    tmp_path: Path,
+) -> None:
+    request = _provider_request(tmp_path / "original.jpg")
+    assert request.schema_package is not None
+    package_payload = dict(request.schema_package.to_dict())
+    schema_payload = dict(cast(Mapping[str, object], package_payload["schema_payload"]))
+    schema_payload["schema_detail"] = "full"
+    package_payload["schema_payload"] = schema_payload
+
+    with pytest.raises(ProviderRejectedRequestError, match="schema_detail"):
+        build_openrouter_response_format(package_payload)
 
 
 @pytest.mark.asyncio
-async def test_openrouter_provider_parses_success_response_and_calls_fake_transport_once(
+async def test_openrouter_provider_parses_success_response_and_calls_fake_client_once(
     tmp_path: Path,
 ) -> None:
     image_path = _write_image_bytes(tmp_path / "original.jpg")
-    transport = FakeOpenRouterHTTPTransport(
+    client = FakeOpenRouterChatCompletionClient(
         response=_openrouter_response(
             content={"raw_text": {"text": "Extracted text."}, "fields": []},
             usage={"prompt_tokens": 10, "completion_tokens": 20},
@@ -185,19 +333,17 @@ async def test_openrouter_provider_parses_success_response_and_calls_fake_transp
     )
     provider = OpenRouterExtractionProvider.from_settings(
         _openrouter_settings(),
-        transport=transport,
+        client=client,
     )
 
     response = await provider.extract(_provider_request(image_path))
 
-    assert len(transport.calls) == 1
-    call = transport.calls[0]
-    assert call.url == "https://openrouter.example/api/v1/chat/completions"
-    assert call.timeout_seconds == 45
-    assert call.headers["Authorization"] == "Bearer fake-openrouter-key"
-    assert call.headers["HTTP-Referer"] == "https://example.test"
-    assert call.headers["X-OpenRouter-Title"] == "test-app"
-    assert "fake-openrouter-key" not in json.dumps(call.payload, sort_keys=True)
+    assert len(client.calls) == 1
+    call = client.calls[0]
+    assert call.kwargs["model"] == "openai/test-vision"
+    assert call.kwargs["timeout"] == 45
+    assert "Authorization" not in json.dumps(call.kwargs, sort_keys=True)
+    assert "fake-openrouter-key" not in json.dumps(call.kwargs, sort_keys=True)
     assert response.provider_name == "openrouter"
     assert response.model_name == "openai/test-vision"
     raw_payload = cast(Mapping[str, object], response.raw_payload)
@@ -209,6 +355,30 @@ async def test_openrouter_provider_parses_success_response_and_calls_fake_transp
     assert response.metadata["provider"] == "openai"
     assert response.metadata["provider_response_id"] == "cmpl-test"
     assert not isinstance(response, ExtractionResult)
+
+
+@pytest.mark.asyncio
+async def test_openrouter_provider_parses_list_content_response(
+    tmp_path: Path,
+) -> None:
+    client = FakeOpenRouterChatCompletionClient(
+        response=_openrouter_response(
+            content=[
+                {
+                    "type": "text",
+                    "text": json.dumps({"raw_text": {"text": "List content text."}}),
+                }
+            ],
+        )
+    )
+    provider = OpenRouterExtractionProvider.from_settings(
+        _openrouter_settings(),
+        client=client,
+    )
+
+    response = await provider.extract(_provider_request(tmp_path / "original.jpg"))
+
+    assert response.raw_text == "List content text."
 
 
 @pytest.mark.parametrize(
@@ -223,15 +393,16 @@ async def test_openrouter_provider_parses_success_response_and_calls_fake_transp
     ],
 )
 @pytest.mark.asyncio
-async def test_openrouter_provider_maps_http_errors(
+async def test_openrouter_provider_maps_sdk_status_errors(
     tmp_path: Path,
     status_code: int,
     error_type: type[Exception],
 ) -> None:
     provider = OpenRouterExtractionProvider.from_settings(
         _openrouter_settings(),
-        transport=FakeOpenRouterHTTPTransport(
-            response=OpenRouterHTTPResponseData(status_code=status_code, body=b"{}")
+        client=FakeOpenRouterChatCompletionClient(
+            response=_openrouter_response(),
+            error=FakeSDKError(status_code=status_code, body={}),
         ),
     )
 
@@ -239,44 +410,75 @@ async def test_openrouter_provider_maps_http_errors(
         await provider.extract(_provider_request(tmp_path / "original.jpg"))
 
 
+@pytest.mark.asyncio
+async def test_openrouter_provider_includes_sdk_error_message_for_rejected_request(
+    tmp_path: Path,
+) -> None:
+    provider = OpenRouterExtractionProvider.from_settings(
+        _openrouter_settings(),
+        client=FakeOpenRouterChatCompletionClient(
+            response=_openrouter_response(),
+            error=FakeSDKError(
+                status_code=400,
+                body={"error": {"message": "Invalid schema for response_format."}},
+            ),
+        ),
+    )
+
+    with pytest.raises(ProviderRejectedRequestError, match="Invalid schema"):
+        await provider.extract(_provider_request(tmp_path / "original.jpg"))
+
+
+@pytest.mark.asyncio
+async def test_openrouter_provider_redacts_secrets_from_sdk_error_message(
+    tmp_path: Path,
+) -> None:
+    provider = OpenRouterExtractionProvider.from_settings(
+        _openrouter_settings(),
+        client=FakeOpenRouterChatCompletionClient(
+            response=_openrouter_response(),
+            error=FakeSDKError(
+                status_code=400,
+                body={
+                    "message": (
+                        "Invalid Authorization: Bearer fake-openrouter-key; "
+                        "api_key=fake-openrouter-key"
+                    )
+                },
+            ),
+        ),
+    )
+
+    with pytest.raises(ProviderRejectedRequestError) as exc_info:
+        await provider.extract(_provider_request(tmp_path / "original.jpg"))
+
+    message = str(exc_info.value)
+    assert "fake-openrouter-key" not in message
+    assert "<redacted>" in message
+
+
 @pytest.mark.parametrize(
-    ("response", "error_match"),
+    ("response_case", "error_match"),
     [
-        (
-            OpenRouterHTTPResponseData(status_code=200, body=b"not-json"),
-            "not valid JSON",
-        ),
-        (
-            OpenRouterHTTPResponseData(status_code=200, body=json.dumps({}).encode()),
-            "missing choices",
-        ),
-        (
-            OpenRouterHTTPResponseData(
-                status_code=200,
-                body=json.dumps({"choices": [{"message": {}}]}).encode(),
-            ),
-            "missing content",
-        ),
-        (
-            OpenRouterHTTPResponseData(
-                status_code=200,
-                body=json.dumps(
-                    {"choices": [{"message": {"content": "[]"}}]}
-                ).encode(),
-            ),
-            "must be an object",
-        ),
+        ("empty_choices", "missing choices"),
+        ("missing_message", "missing message"),
+        ("missing_content", "missing content"),
+        ("invalid_json", "not valid JSON"),
+        ("empty_list_content", "missing content"),
+        ("non_object_json", "must be an object"),
     ],
 )
 @pytest.mark.asyncio
 async def test_openrouter_provider_maps_malformed_responses(
     tmp_path: Path,
-    response: OpenRouterHTTPResponseData,
+    response_case: str,
     error_match: str,
 ) -> None:
     provider = OpenRouterExtractionProvider.from_settings(
         _openrouter_settings(),
-        transport=FakeOpenRouterHTTPTransport(response=response),
+        client=FakeOpenRouterChatCompletionClient(
+            response=_malformed_response(response_case)
+        ),
     )
 
     with pytest.raises(ProviderMalformedResponseError, match=error_match):
@@ -284,22 +486,22 @@ async def test_openrouter_provider_maps_malformed_responses(
 
 
 @pytest.mark.asyncio
-async def test_openrouter_provider_maps_transport_timeout(
+async def test_openrouter_provider_maps_client_timeout(
     tmp_path: Path,
 ) -> None:
-    transport = FakeOpenRouterHTTPTransport(
+    client = FakeOpenRouterChatCompletionClient(
         response=_openrouter_response(),
         error=TimeoutError("timed out"),
     )
     provider = OpenRouterExtractionProvider.from_settings(
         _openrouter_settings(),
-        transport=transport,
+        client=client,
     )
 
-    with pytest.raises(ProviderTimeoutError, match="timed out"):
+    with pytest.raises(ProviderTimeoutError, match="timed out|timed out"):
         await provider.extract(_provider_request(tmp_path / "original.jpg"))
 
-    assert len(transport.calls) == 1
+    assert len(client.calls) == 1
 
 
 @pytest.mark.parametrize(
@@ -334,25 +536,25 @@ def test_openrouter_request_builder_rejects_unsupported_request_shape(
     )
 
     with pytest.raises(ProviderRejectedRequestError, match=error_match):
-        build_openrouter_chat_completion_payload(request)
+        build_openrouter_chat_completion_kwargs(request)
 
 
-def test_openrouter_factory_builds_explicit_adapter_with_fake_transport() -> None:
-    transport = FakeOpenRouterHTTPTransport(response=_openrouter_response())
+def test_openrouter_factory_builds_explicit_adapter_with_fake_client() -> None:
+    client = FakeOpenRouterChatCompletionClient(response=_openrouter_response())
     provider = build_extraction_provider(
         ExtractionSettings(
             provider_name=ExtractionProviderName.OPENROUTER,
             model="openai/test-vision",
         ),
         openrouter_settings=_openrouter_settings(),
-        openrouter_transport=transport,
+        openrouter_client=client,
     )
 
     assert isinstance(provider, OpenRouterExtractionProvider)
 
 
-def test_openrouter_factory_rejects_placeholder_api_key_before_transport_call() -> None:
-    transport = FakeOpenRouterHTTPTransport(response=_openrouter_response())
+def test_openrouter_factory_rejects_placeholder_api_key_before_client_call() -> None:
+    client = FakeOpenRouterChatCompletionClient(response=_openrouter_response())
 
     with pytest.raises(ProviderAuthenticationError, match="OPENROUTER_API_KEY"):
         build_extraction_provider(
@@ -361,10 +563,10 @@ def test_openrouter_factory_rejects_placeholder_api_key_before_transport_call() 
                 model="openai/test-vision",
             ),
             openrouter_settings=OpenRouterSettings(),
-            openrouter_transport=transport,
+            openrouter_client=client,
         )
 
-    assert transport.calls == []
+    assert client.calls == []
 
 
 def test_fake_provider_factory_still_builds_without_openrouter_settings() -> None:
@@ -376,38 +578,67 @@ def test_fake_provider_factory_still_builds_without_openrouter_settings() -> Non
 
 
 @dataclass(frozen=True, slots=True)
-class TransportCall:
-    url: str
-    headers: Mapping[str, str]
-    payload: Mapping[str, object]
-    timeout_seconds: int
+class ClientCall:
+    kwargs: Mapping[str, object]
 
 
 @dataclass(slots=True)
-class FakeOpenRouterHTTPTransport:
-    response: OpenRouterHTTPResponseData
-    calls: list[TransportCall] = field(default_factory=list)
+class FakeOpenRouterChatCompletionClient:
+    response: object
+    calls: list[ClientCall] = field(default_factory=list)
     error: Exception | None = None
 
-    def post_json(
-        self,
-        url: str,
-        headers: Mapping[str, str],
-        payload: Mapping[str, object],
-        *,
-        timeout_seconds: int,
-    ) -> OpenRouterHTTPResponseData:
-        self.calls.append(
-            TransportCall(
-                url=url,
-                headers=dict(headers),
-                payload=dict(payload),
-                timeout_seconds=timeout_seconds,
-            )
-        )
+    async def create_chat_completion(self, **kwargs: object) -> object:
+        self.calls.append(ClientCall(kwargs=dict(kwargs)))
         if self.error is not None:
             raise self.error
         return self.response
+
+
+class FakeSDKError(Exception):
+    def __init__(
+        self,
+        *,
+        status_code: int,
+        body: object | None = None,
+        message: str = "fake sdk error",
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.body = body
+        self.message = message
+
+
+@dataclass(frozen=True, slots=True)
+class FakeCompletionMessage:
+    content: object
+
+
+@dataclass(frozen=True, slots=True)
+class FakeCompletionChoice:
+    message: FakeCompletionMessage | None
+    finish_reason: str | None = "stop"
+
+
+@dataclass(frozen=True, slots=True)
+class FakeUsage:
+    prompt_tokens: int
+    completion_tokens: int
+
+    def model_dump(self) -> dict[str, object]:
+        return {
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class FakeCompletionResponse:
+    choices: list[FakeCompletionChoice]
+    model: str = "openai/test-vision"
+    id: str = "cmpl-test"
+    provider: str | None = "openai"
+    usage: object | None = None
 
 
 def _provider_request(
@@ -418,12 +649,14 @@ def _provider_request(
     schema_package: object = _UNSET,
     structured_outputs_enabled: bool = True,
     structured_outputs_require_parameters: bool = False,
+    provider_schema_mode: ProviderSchemaMode = ProviderSchemaMode.COMPACT,
 ) -> ExtractionProviderRequest:
     image_path = _write_image_bytes(image_path)
     context = _provider_context(
         image_path,
         structured_outputs_enabled=structured_outputs_enabled,
         structured_outputs_require_parameters=structured_outputs_require_parameters,
+        provider_schema_mode=provider_schema_mode,
     )
     prompt = (
         build_extraction_prompt_package(context)
@@ -459,6 +692,7 @@ def _provider_context(
     *,
     structured_outputs_enabled: bool = True,
     structured_outputs_require_parameters: bool = False,
+    provider_schema_mode: ProviderSchemaMode = ProviderSchemaMode.COMPACT,
 ) -> ProviderInputContext:
     return ProviderInputContext(
         job_id="job-001",
@@ -482,7 +716,7 @@ def _provider_context(
             temperature=0.2,
             timeout_seconds=45,
             max_retries=2,
-            provider_schema_mode=ProviderSchemaMode.COMPACT,
+            provider_schema_mode=provider_schema_mode,
             structured_outputs_enabled=structured_outputs_enabled,
             structured_outputs_require_parameters=structured_outputs_require_parameters,
         ),
@@ -500,39 +734,94 @@ def _openrouter_settings() -> OpenRouterSettings:
 
 def _openrouter_response(
     *,
-    content: Mapping[str, object] | None = None,
+    content: object = _UNSET,
     usage: Mapping[str, object] | None = None,
-) -> OpenRouterHTTPResponseData:
-    payload = {
-        "id": "cmpl-test",
-        "model": "openai/test-vision",
-        "provider": "openai",
-        "choices": [
-            {
-                "message": {
-                    "content": json.dumps(
-                        content or {"raw_text": {"text": "Extracted text."}}
-                    ),
-                },
-                "finish_reason": "stop",
-            }
-        ],
-        "usage": dict(usage or {"prompt_tokens": 1, "completion_tokens": 2}),
-    }
-    return OpenRouterHTTPResponseData(
-        status_code=200,
-        body=json.dumps(payload).encode("utf-8"),
-    )
+    choices: list[FakeCompletionChoice] | None = None,
+    message: FakeCompletionMessage | None | object = _UNSET,
+) -> FakeCompletionResponse:
+    if choices is None:
+        if message is _UNSET:
+            if content is _UNSET:
+                content = {"raw_text": {"text": "Extracted text."}}
+            if isinstance(content, Mapping):
+                content = json.dumps(content)
+            message = FakeCompletionMessage(content=content)
+        choice_message = (
+            cast(FakeCompletionMessage | None, message)
+            if message is not _UNSET
+            else None
+        )
+        choices = [FakeCompletionChoice(message=choice_message)]
+    usage_payload: object | None = None
+    if usage is not None:
+        usage_payload = dict(usage)
+    else:
+        usage_payload = FakeUsage(prompt_tokens=1, completion_tokens=2)
+    return FakeCompletionResponse(choices=choices, usage=usage_payload)
 
 
-def _user_content(payload: Mapping[str, object]) -> list[dict[str, object]]:
-    messages = payload["messages"]
+def _malformed_response(response_case: str) -> FakeCompletionResponse:
+    if response_case == "empty_choices":
+        return _openrouter_response(choices=[])
+    if response_case == "missing_message":
+        return _openrouter_response(message=None)
+    if response_case == "missing_content":
+        return _openrouter_response(content=None)
+    if response_case == "invalid_json":
+        return _openrouter_response(content="not-json")
+    if response_case == "empty_list_content":
+        return _openrouter_response(content=[])
+    if response_case == "non_object_json":
+        return _openrouter_response(content="[]")
+    raise AssertionError(f"Unknown malformed response case: {response_case}")
+
+
+def _user_content(kwargs: Mapping[str, object]) -> list[dict[str, object]]:
+    messages = kwargs["messages"]
     assert isinstance(messages, list)
     user_message = messages[1]
     assert isinstance(user_message, Mapping)
     content = user_message["content"]
     assert isinstance(content, list)
     return cast(list[dict[str, object]], content)
+
+
+def _provider_response_schema(
+    schema_package_payload: Mapping[str, object],
+) -> Mapping[str, object]:
+    response_format = build_openrouter_response_format(schema_package_payload)
+    json_schema = cast(Mapping[str, object], response_format["json_schema"])
+    return cast(Mapping[str, object], json_schema["schema"])
+
+
+def _properties(schema: object) -> Mapping[str, object]:
+    assert isinstance(schema, Mapping)
+    properties = schema["properties"]
+    assert isinstance(properties, Mapping)
+    return cast(Mapping[str, object], properties)
+
+
+def _array_items(schema: object) -> Mapping[str, object]:
+    assert isinstance(schema, Mapping)
+    items = schema["items"]
+    assert isinstance(items, Mapping)
+    return cast(Mapping[str, object], items)
+
+
+def _assert_explicit_object_schema(schema: object) -> None:
+    assert isinstance(schema, Mapping)
+    assert schema["type"] == "object"
+    assert schema["additionalProperties"] is False
+    assert isinstance(schema["required"], list)
+    assert _properties(schema)
+
+
+def _contains_key(value: object, key: str) -> bool:
+    if isinstance(value, Mapping):
+        return key in value or any(_contains_key(item, key) for item in value.values())
+    if isinstance(value, list):
+        return any(_contains_key(item, key) for item in value)
+    return False
 
 
 def _write_image_bytes(path: Path) -> Path:

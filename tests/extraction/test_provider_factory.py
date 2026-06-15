@@ -22,7 +22,6 @@ from document_digitization_ai.extraction import (
     ProviderUnavailableError,
     build_extraction_provider,
 )
-from document_digitization_ai.extraction.openrouter import OpenRouterHTTPResponseData
 
 
 PROVIDER_ERROR_TYPES = (
@@ -78,14 +77,14 @@ def test_provider_factory_builds_openrouter_with_explicit_settings() -> None:
             api_key=SecretStr("fake-openrouter-key"),
             base_url="https://openrouter.example/api/v1",
         ),
-        openrouter_transport=_NoopOpenRouterTransport(),
+        openrouter_client=_NoopOpenRouterClient(),
     )
 
     assert isinstance(provider, OpenRouterExtractionProvider)
 
 
-def test_provider_factory_rejects_openrouter_placeholder_key_before_transport() -> None:
-    transport = _NoopOpenRouterTransport()
+def test_provider_factory_rejects_openrouter_placeholder_key_before_client_call() -> None:
+    client = _NoopOpenRouterClient()
 
     with pytest.raises(ProviderAuthenticationError, match="OPENROUTER_API_KEY"):
         build_extraction_provider(
@@ -94,10 +93,10 @@ def test_provider_factory_rejects_openrouter_placeholder_key_before_transport() 
                 model="openai/test-vision",
             ),
             openrouter_settings=OpenRouterSettings(),
-            openrouter_transport=transport,
+            openrouter_client=client,
         )
 
-    assert transport.called is False
+    assert client.called is False
 
 
 def test_provider_factory_rejects_unsupported_provider_explicitly() -> None:
@@ -120,16 +119,12 @@ def test_provider_factory_rejects_non_settings_input() -> None:
         build_extraction_provider(object())  # type: ignore[arg-type]
 
 
-class _NoopOpenRouterTransport:
+class _NoopOpenRouterClient:
     called: bool = False
 
-    def post_json(
+    async def create_chat_completion(
         self,
-        url: str,
-        headers: object,
-        payload: object,
-        *,
-        timeout_seconds: int,
-    ) -> OpenRouterHTTPResponseData:
+        **kwargs: object,
+    ) -> object:
         self.called = True
-        return OpenRouterHTTPResponseData(status_code=500, body=b"{}")
+        return object()
