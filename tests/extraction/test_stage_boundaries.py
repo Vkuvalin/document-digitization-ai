@@ -28,6 +28,13 @@ OPENROUTER_TRANSPORT_MODULES = (
     Path("src/document_digitization_ai/extraction/openrouter.py"),
 )
 
+STAGE_14_ATTEMPT_MODULES = (
+    Path("src/document_digitization_ai/db/extraction_attempts.py"),
+    Path("src/document_digitization_ai/db/models.py"),
+    Path("src/document_digitization_ai/db/repository.py"),
+    Path("src/document_digitization_ai/storage/artifacts.py"),
+)
+
 EXTRACTION_MODULES_WITH_OPENROUTER = (
     *EXTRACTION_RUNTIME_MODULES,
     *OPENROUTER_TRANSPORT_MODULES,
@@ -45,6 +52,14 @@ FORBIDDEN_NETWORK_MODULES = (
 FORBIDDEN_PROVIDER_SDK_MODULES = (
     "openai",
     "openrouter",
+)
+
+FORBIDDEN_STAGE_14_RUNTIME_MODULES = (
+    *FORBIDDEN_NETWORK_MODULES,
+    *FORBIDDEN_PROVIDER_SDK_MODULES,
+    "document_digitization_ai.media.imgbb",
+    "document_digitization_ai.extraction.openrouter",
+    "document_digitization_ai.services.extraction_workflow",
 )
 
 
@@ -153,6 +168,16 @@ def test_services_application_and_db_do_not_import_openrouter_adapter_directly()
     for module_path in module_paths:
         imported_modules = _imported_module_names(module_path)
         assert "document_digitization_ai.extraction.openrouter" not in imported_modules
+
+
+def test_stage_14_attempt_modules_do_not_import_runtime_or_provider_boundaries() -> None:
+    for module_path in STAGE_14_ATTEMPT_MODULES:
+        imported_modules = _imported_module_names(module_path)
+        for imported_module in imported_modules:
+            assert not _matches_any_import(
+                imported_module,
+                FORBIDDEN_STAGE_14_RUNTIME_MODULES,
+            )
 
 
 def _imported_module_names(module_path: Path) -> tuple[str, ...]:

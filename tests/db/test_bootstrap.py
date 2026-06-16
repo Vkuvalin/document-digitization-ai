@@ -8,7 +8,7 @@ from document_digitization_ai.db.session import create_async_engine_from_url
 
 
 @pytest.mark.asyncio
-async def test_database_bootstrap_creates_document_jobs_table(tmp_path: Path) -> None:
+async def test_database_bootstrap_creates_expected_tables(tmp_path: Path) -> None:
     database_path = tmp_path / "nested" / "db" / "bootstrap.db"
     engine = create_async_engine_from_url(
         f"sqlite+aiosqlite:///{database_path}"
@@ -24,4 +24,5 @@ async def test_database_bootstrap_creates_document_jobs_table(tmp_path: Path) ->
         await engine.dispose()
 
     assert "document_jobs" in table_names
+    assert "extraction_attempts" in table_names
     assert database_path.parent.is_dir()

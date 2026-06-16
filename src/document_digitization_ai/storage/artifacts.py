@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
+from pathlib import PurePosixPath, PureWindowsPath
+from typing import Any
 
 from document_digitization_ai.core import StorageSettings
 
@@ -17,6 +20,20 @@ class JobArtifactPaths:
     result_dir: Path
     result_json_path: Path
     preview_path: Path
+
+
+@dataclass(frozen=True, slots=True)
+class ExtractionAttemptArtifactPaths:
+    attempt_dir_relative: str
+    raw_response_artifact_path: str
+    sanitized_response_artifact_path: str
+    error_response_artifact_path: str
+
+
+@dataclass(frozen=True, slots=True)
+class StoredExtractionAttemptArtifact:
+    relative_path: str
+    size_bytes: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +90,111 @@ class JobArtifactLayout:
         return self.paths_for_job(job_id, file_extension)
 
 
+@dataclass(frozen=True, slots=True)
+class ExtractionAttemptArtifactLayout:
+    artifact_root: Path
+
+    def attempt_dir_relative(self, job_id: str, attempt_number: int) -> str:
+        safe_job_id = _validate_path_segment(job_id, "job_id")
+        attempt_segment = _format_attempt_number(attempt_number)
+        return f"jobs/{safe_job_id}/attempts/{attempt_segment}"
+
+    def relative_path(
+        self,
+        job_id: str,
+        attempt_number: int,
+        filename: str,
+    ) -> str:
+        return build_extraction_attempt_artifact_path(
+            job_id=job_id,
+            attempt_number=attempt_number,
+            filename=filename,
+        )
+
+    def paths_for_attempt(
+        self,
+        job_id: str,
+        attempt_number: int,
+    ) -> ExtractionAttemptArtifactPaths:
+        attempt_dir = self.attempt_dir_relative(job_id, attempt_number)
+        return ExtractionAttemptArtifactPaths(
+            attempt_dir_relative=attempt_dir,
+            raw_response_artifact_path=(
+                f"{attempt_dir}/provider_raw_response.json"
+            ),
+            sanitized_response_artifact_path=(
+                f"{attempt_dir}/provider_sanitized_response.json"
+            ),
+            error_response_artifact_path=(
+                f"{attempt_dir}/provider_error_response.json"
+            ),
+        )
+
+    def write_json_artifact(
+        self,
+        *,
+        job_id: str,
+        attempt_number: int,
+        filename: str,
+        payload: Any,
+    ) -> StoredExtractionAttemptArtifact:
+        relative_path = self.relative_path(job_id, attempt_number, filename)
+        _ensure_json_compatible(payload, "payload")
+        target_path = _safe_artifact_target_path(self.artifact_root, relative_path)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        serialized = json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        data = f"{serialized}\n".encode("utf-8")
+        target_path.write_bytes(data)
+        return StoredExtractionAttemptArtifact(
+            relative_path=relative_path,
+            size_bytes=len(data),
+        )
+
+
+def build_extraction_attempt_artifact_path(
+    *,
+    job_id: str,
+    attempt_number: int,
+    filename: str,
+) -> str:
+    safe_job_id = _validate_path_segment(job_id, "job_id")
+    attempt_segment = _format_attempt_number(attempt_number)
+    safe_filename = _validate_path_segment(filename, "filename")
+    return validate_relative_artifact_path(
+        f"jobs/{safe_job_id}/attempts/{attempt_segment}/{safe_filename}"
+    )
+
+
+def validate_relative_artifact_path(value: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        msg = "artifact path must be a non-empty relative path"
+        raise ArtifactLayoutError(msg)
+
+    raw_path = value.strip()
+    windows_path = PureWindowsPath(raw_path)
+    if windows_path.is_absolute() or windows_path.drive:
+        msg = "artifact path must not be an absolute Windows path"
+        raise ArtifactLayoutError(msg)
+
+    normalized_path = raw_path.replace("\\", "/")
+    posix_path = PurePosixPath(normalized_path)
+    if posix_path.is_absolute():
+        msg = "artifact path must not be an absolute POSIX path"
+        raise ArtifactLayoutError(msg)
+
+    parts = normalized_path.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        msg = "artifact path must not contain empty, current, or parent segments"
+        raise ArtifactLayoutError(msg)
+
+    return "/".join(parts)
+
+
 def _validate_path_segment(value: str, field_name: str) -> str:
     if not value.strip():
         msg = f"{field_name} must not be empty"
@@ -99,3 +221,48 @@ def _normalize_extension(file_extension: str) -> str:
         extension = f".{extension}"
     _validate_path_segment(segment, "file_extension")
     return extension
+
+
+def _format_attempt_number(attempt_number: int) -> str:
+    if isinstance(attempt_number, bool) or not isinstance(attempt_number, int):
+        msg = "attempt_number must be a positive integer"
+        raise ArtifactLayoutError(msg)
+    if attempt_number <= 0:
+        msg = "attempt_number must be a positive integer"
+        raise ArtifactLayoutError(msg)
+    return f"{attempt_number:03d}"
+
+
+def _safe_artifact_target_path(artifact_root: Path, relative_path: str) -> Path:
+    normalized_relative_path = validate_relative_artifact_path(relative_path)
+    root = artifact_root.resolve()
+    target_path = root.joinpath(*normalized_relative_path.split("/")).resolve()
+    try:
+        target_path.relative_to(root)
+    except ValueError as exc:
+        msg = "artifact target path must stay inside artifact root"
+        raise ArtifactLayoutError(msg) from exc
+    return target_path
+
+
+def _ensure_json_compatible(value: Any, field_name: str) -> None:
+    if value is None or isinstance(value, str | bool | int):
+        return
+    if isinstance(value, float):
+        if not value == value or value in {float("inf"), float("-inf")}:
+            msg = f"{field_name} must be finite"
+            raise ArtifactLayoutError(msg)
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _ensure_json_compatible(item, f"{field_name}[{index}]")
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if not isinstance(key, str) or not key.strip():
+                msg = f"{field_name} keys must be non-empty strings"
+                raise ArtifactLayoutError(msg)
+            _ensure_json_compatible(item, f"{field_name}.{key}")
+        return
+    msg = f"{field_name} must be JSON-compatible"
+    raise ArtifactLayoutError(msg)

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from uuid import uuid4
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from document_digitization_ai.contracts import (
@@ -11,7 +13,11 @@ from document_digitization_ai.contracts import (
     JobStatus,
     can_transition_job_status,
 )
-from document_digitization_ai.db.models import DocumentJob
+from document_digitization_ai.db.models import (
+    DocumentJob,
+    ExtractionAttempt,
+    ExtractionAttemptStatus,
+)
 
 
 class PersistenceError(RuntimeError):
@@ -24,6 +30,14 @@ class JobNotFoundError(PersistenceError):
 
 class InvalidJobStatusTransitionError(PersistenceError):
     """Raised when a repository update violates the approved lifecycle."""
+
+
+class ExtractionAttemptNotFoundError(PersistenceError):
+    """Raised when an extraction attempt does not exist."""
+
+
+class InvalidExtractionAttemptStatusTransitionError(PersistenceError):
+    """Raised when an extraction attempt transition violates the lifecycle."""
 
 
 class DocumentJobRepository:
@@ -118,5 +132,114 @@ class DocumentJobRepository:
         return job
 
 
+class ExtractionAttemptRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create_attempt(
+        self,
+        *,
+        job_id: str,
+        attempt_number: int,
+        provider_name: str,
+        model_name: str,
+        schema_version: str,
+        schema_mode: str,
+        request_metadata_json: Mapping[str, object],
+        attempt_id: str | None = None,
+    ) -> ExtractionAttempt:
+        await self._require_job(job_id)
+        attempt = ExtractionAttempt(
+            id=attempt_id or generate_attempt_id(),
+            job_id=job_id,
+            attempt_number=attempt_number,
+            status=ExtractionAttemptStatus.PENDING,
+            provider_name=provider_name,
+            model_name=model_name,
+            schema_version=schema_version,
+            schema_mode=schema_mode,
+            request_metadata_json=dict(request_metadata_json),
+        )
+        self._session.add(attempt)
+        await self._session.flush()
+        return attempt
+
+    async def get_attempt(self, attempt_id: str) -> ExtractionAttempt | None:
+        return await self._session.get(ExtractionAttempt, attempt_id)
+
+    async def require_attempt(self, attempt_id: str) -> ExtractionAttempt:
+        attempt = await self.get_attempt(attempt_id)
+        if attempt is None:
+            msg = f"Extraction attempt not found: {attempt_id}"
+            raise ExtractionAttemptNotFoundError(msg)
+        return attempt
+
+    async def list_attempts_for_job(self, job_id: str) -> tuple[ExtractionAttempt, ...]:
+        statement = (
+            select(ExtractionAttempt)
+            .where(ExtractionAttempt.job_id == job_id)
+            .order_by(ExtractionAttempt.attempt_number)
+        )
+        attempts = await self._session.scalars(statement)
+        return tuple(attempts.all())
+
+    async def get_latest_attempt_for_job(
+        self,
+        job_id: str,
+    ) -> ExtractionAttempt | None:
+        statement = (
+            select(ExtractionAttempt)
+            .where(ExtractionAttempt.job_id == job_id)
+            .order_by(ExtractionAttempt.attempt_number.desc())
+            .limit(1)
+        )
+        return await self._session.scalar(statement)
+
+    async def get_active_attempt_for_job(
+        self,
+        job_id: str,
+    ) -> ExtractionAttempt | None:
+        statement = (
+            select(ExtractionAttempt)
+            .where(
+                ExtractionAttempt.job_id == job_id,
+                ExtractionAttempt.status.in_(
+                    (
+                        ExtractionAttemptStatus.PENDING,
+                        ExtractionAttemptStatus.RUNNING,
+                    )
+                ),
+            )
+            .order_by(ExtractionAttempt.attempt_number.desc())
+            .limit(1)
+        )
+        return await self._session.scalar(statement)
+
+    async def get_next_attempt_number(self, job_id: str) -> int:
+        await self._require_job(job_id)
+        statement = select(func.max(ExtractionAttempt.attempt_number)).where(
+            ExtractionAttempt.job_id == job_id
+        )
+        latest_attempt_number = await self._session.scalar(statement)
+        if latest_attempt_number is None:
+            return 1
+        return int(latest_attempt_number) + 1
+
+    async def save(self, attempt: ExtractionAttempt) -> ExtractionAttempt:
+        await self._session.flush()
+        return attempt
+
+    async def _require_job(self, job_id: str) -> DocumentJob:
+        job = await self._session.get(DocumentJob, job_id)
+        if job is None:
+            msg = f"Document job not found: {job_id}"
+            raise JobNotFoundError(msg)
+        return job
+
+
 def generate_job_id() -> str:
+    return uuid4().hex
+
+
+def generate_attempt_id() -> str:
     return uuid4().hex
