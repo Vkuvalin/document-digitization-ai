@@ -179,6 +179,11 @@ class ExtractionAttemptLifecycleService:
         async with self.session_factory() as session:
             repository = ExtractionAttemptRepository(session)
             attempt = await repository.require_attempt(attempt_id)
+            _ensure_expected_status(
+                attempt,
+                expected_status=ExtractionAttemptStatus.RUNNING,
+                operation="artifact reference update",
+            )
             attempt.raw_response_artifact_path = _optional_artifact_path(
                 raw_response_artifact_path,
                 "raw_response_artifact_path",
@@ -443,6 +448,21 @@ def _ensure_expected_transition(
             f"{attempt.status.value} -> {next_status.value}"
         )
         raise InvalidExtractionAttemptStatusTransitionError(msg)
+
+
+def _ensure_expected_status(
+    attempt: ExtractionAttempt,
+    *,
+    expected_status: ExtractionAttemptStatus,
+    operation: str,
+) -> None:
+    if attempt.status == expected_status:
+        return
+    msg = (
+        f"Invalid extraction attempt {operation}: expected "
+        f"{expected_status.value}, got {attempt.status.value}"
+    )
+    raise InvalidExtractionAttemptStatusTransitionError(msg)
 
 
 def _duration_ms(started_at: datetime | None, finished_at: datetime) -> int:

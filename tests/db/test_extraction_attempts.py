@@ -353,6 +353,7 @@ async def test_artifact_paths_are_validated_and_nullable_on_provider_failure(
         await _create_job(session_factory, "job-artifacts")
         service = ExtractionAttemptLifecycleService(session_factory)
         attempt = await _create_attempt(service, "job-artifacts")
+        await service.start_attempt(attempt.id)
 
         with pytest.raises(ValueError, match="raw_response_artifact_path"):
             await service.record_provider_response_artifacts(
@@ -362,12 +363,127 @@ async def test_artifact_paths_are_validated_and_nullable_on_provider_failure(
 
         failed = await service.complete_attempt_failure(
             attempt.id,
-            expected_status=ExtractionAttemptStatus.PENDING,
             error="provider failed before response",
         )
 
         assert failed.raw_response_artifact_path is None
         assert failed.sanitized_response_artifact_path is None
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_record_provider_response_artifacts_requires_running_and_preserves_refs(
+    tmp_path: Path,
+) -> None:
+    engine, session_factory = await _session_factory(tmp_path, "artifact-guard.db")
+    try:
+        await _create_job(session_factory, "job-artifact-guard")
+        service = ExtractionAttemptLifecycleService(session_factory)
+
+        pending_attempt = await _create_attempt(service, "job-artifact-guard")
+        with pytest.raises(
+            InvalidExtractionAttemptStatusTransitionError,
+            match="expected RUNNING",
+        ):
+            await service.record_provider_response_artifacts(
+                pending_attempt.id,
+                raw_response_artifact_path=(
+                    "jobs/job-artifact-guard/attempts/001/provider_raw_response.json"
+                ),
+            )
+
+        async with session_factory() as session:
+            repository = ExtractionAttemptRepository(session)
+            persisted = await repository.require_attempt(pending_attempt.id)
+            assert persisted.raw_response_artifact_path is None
+            assert persisted.sanitized_response_artifact_path is None
+
+        running_attempt = await _create_attempt(service, "job-artifact-guard")
+        await service.start_attempt(running_attempt.id)
+        recorded = await service.record_provider_response_artifacts(
+            running_attempt.id,
+            raw_response_artifact_path=(
+                "jobs/job-artifact-guard/attempts/002/provider_raw_response.json"
+            ),
+            raw_response_size_bytes=10,
+            sanitized_response_artifact_path=(
+                "jobs/job-artifact-guard/attempts/002/provider_sanitized_response.json"
+            ),
+            sanitized_response_size_bytes=8,
+        )
+
+        assert recorded.raw_response_artifact_path == (
+            "jobs/job-artifact-guard/attempts/002/provider_raw_response.json"
+        )
+        assert recorded.sanitized_response_artifact_path == (
+            "jobs/job-artifact-guard/attempts/002/provider_sanitized_response.json"
+        )
+
+        await service.complete_attempt_success(
+            running_attempt.id,
+            validation_outcome="succeeded",
+            validation_issue_count=0,
+            raw_response_artifact_path=recorded.raw_response_artifact_path,
+            raw_response_size_bytes=recorded.raw_response_size_bytes,
+            sanitized_response_artifact_path=recorded.sanitized_response_artifact_path,
+            sanitized_response_size_bytes=recorded.sanitized_response_size_bytes,
+        )
+        with pytest.raises(
+            InvalidExtractionAttemptStatusTransitionError,
+            match="expected RUNNING",
+        ):
+            await service.record_provider_response_artifacts(
+                running_attempt.id,
+                raw_response_artifact_path=(
+                    "jobs/job-artifact-guard/attempts/002/overwritten.json"
+                ),
+                raw_response_size_bytes=999,
+            )
+
+        async with session_factory() as session:
+            repository = ExtractionAttemptRepository(session)
+            persisted = await repository.require_attempt(running_attempt.id)
+            assert persisted.raw_response_artifact_path == recorded.raw_response_artifact_path
+            assert persisted.raw_response_size_bytes == recorded.raw_response_size_bytes
+            assert (
+                persisted.sanitized_response_artifact_path
+                == recorded.sanitized_response_artifact_path
+            )
+            assert (
+                persisted.sanitized_response_size_bytes
+                == recorded.sanitized_response_size_bytes
+            )
+
+        failed_attempt = await _create_attempt(service, "job-artifact-guard")
+        await service.start_attempt(failed_attempt.id)
+        failed = await service.complete_attempt_failure(
+            failed_attempt.id,
+            error="provider failed after raw response",
+            raw_response_artifact_path=(
+                "jobs/job-artifact-guard/attempts/003/provider_raw_response.json"
+            ),
+            raw_response_size_bytes=12,
+        )
+        with pytest.raises(
+            InvalidExtractionAttemptStatusTransitionError,
+            match="expected RUNNING",
+        ):
+            await service.record_provider_response_artifacts(
+                failed_attempt.id,
+                raw_response_artifact_path=(
+                    "jobs/job-artifact-guard/attempts/003/overwritten.json"
+                ),
+                raw_response_size_bytes=999,
+            )
+
+        async with session_factory() as session:
+            repository = ExtractionAttemptRepository(session)
+            persisted = await repository.require_attempt(failed_attempt.id)
+            assert persisted.raw_response_artifact_path == failed.raw_response_artifact_path
+            assert persisted.raw_response_size_bytes == failed.raw_response_size_bytes
+            assert persisted.sanitized_response_artifact_path is None
+            assert persisted.sanitized_response_size_bytes is None
     finally:
         await engine.dispose()
 
