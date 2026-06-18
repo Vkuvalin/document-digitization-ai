@@ -257,11 +257,15 @@ def attach_staged_media(
 
 
 def _validate_job_lifecycle(job: DocumentJob) -> None:
-    if job.status is JobStatus.IMAGE_DIAGNOSTICS_READY:
+    if job.status in {
+        JobStatus.IMAGE_DIAGNOSTICS_READY,
+        JobStatus.EXTRACTION_RUNNING,
+    }:
         return
     msg = (
         "Provider input context requires job status "
-        f"{JobStatus.IMAGE_DIAGNOSTICS_READY.value}; got {job.status.value}"
+        f"{JobStatus.IMAGE_DIAGNOSTICS_READY.value} or "
+        f"{JobStatus.EXTRACTION_RUNNING.value}; got {job.status.value}"
     )
     raise ProviderInputContextLifecycleError(msg)
 

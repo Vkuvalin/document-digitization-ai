@@ -42,6 +42,7 @@ PARTIAL_VALIDATION_JOB_STATUSES: tuple[JobStatus, ...] = (
 
 TERMINAL_JOB_STATUSES: frozenset[JobStatus] = frozenset(
     {
+        JobStatus.RESULT_READY,
         JobStatus.FAILED,
         JobStatus.CANCELLED,
     }
@@ -65,6 +66,7 @@ ALLOWED_JOB_STATUS_TRANSITIONS: Mapping[JobStatus, frozenset[JobStatus]] = {
     JobStatus.IMAGE_DIAGNOSTICS_READY: frozenset(
         {
             JobStatus.MEDIA_STAGED,
+            JobStatus.EXTRACTION_RUNNING,
             JobStatus.FAILED,
             JobStatus.CANCELLED,
         }

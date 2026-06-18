@@ -153,6 +153,16 @@ def validate_provider_output(
     )
 
 
+def sanitize_provider_payload(
+    provider_response: ExtractionProviderResponse,
+) -> Mapping[str, object]:
+    if not isinstance(provider_response, ExtractionProviderResponse):
+        msg = "provider_response must be an ExtractionProviderResponse value"
+        raise ExtractionValidationError(msg)
+    payload = _require_mapping(provider_response.raw_payload, "raw_payload")
+    return _normalize_top_level_payload(payload, [])
+
+
 def image_diagnostics_from_payload(payload: Mapping[str, object]) -> ImageDiagnostics:
     diagnostics = _require_mapping(payload, "image_diagnostics_payload")
     file_payload = _require_mapping(diagnostics.get("file"), "image_diagnostics.file")

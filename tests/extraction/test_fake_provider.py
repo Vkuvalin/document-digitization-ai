@@ -38,6 +38,7 @@ async def test_fake_provider_returns_deterministic_response(tmp_path: Path) -> N
     assert first.model_name == "fake-model-v0"
     assert first.raw_text == "Deterministic fake extracted text."
     assert first.raw_payload == second.raw_payload
+    assert first.raw_response_json is not None
     assert first.metadata["correlation_id"] == "job-001"
     assert not isinstance(first, ExtractionResult)
 

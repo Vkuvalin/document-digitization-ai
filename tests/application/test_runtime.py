@@ -10,6 +10,7 @@ from document_digitization_ai.application import LocalDocumentApplication
 from document_digitization_ai.contracts import DocumentModeHint, JobStatus
 from document_digitization_ai.core import AppSettings
 from document_digitization_ai.db import DocumentJob, create_async_session_factory
+from document_digitization_ai.db.models import ExtractionAttempt
 from document_digitization_ai.services import (
     DocumentExtractionWorkflowError,
     DocumentIntakeError,
@@ -138,6 +139,36 @@ async def test_application_fake_extraction_failure_persists_failed_job_state(
     assert persisted_job.status is JobStatus.FAILED
     assert persisted_job.error_message is not None
     assert persisted_job.extraction_result_payload is None
+
+
+@pytest.mark.asyncio
+async def test_application_real_extraction_from_image_runs_configured_backend_workflow(
+    tmp_path: Path,
+) -> None:
+    source_image_path = tmp_path / "source.jpg"
+    _save_rgb_image(source_image_path, size=(120, 120), color=(128, 128, 128))
+    application = LocalDocumentApplication(_app_settings(tmp_path))
+    try:
+        await application.initialize_database()
+
+        summary = await application.run_real_extraction_from_image(
+            source_image_path,
+            DocumentModeHint.PLAIN_TEXT,
+        )
+        session_factory = create_async_session_factory(application.engine)
+        async with session_factory() as session:
+            persisted_job = await session.get(DocumentJob, summary.job_id)
+            attempts = (await session.scalars(select(ExtractionAttempt))).all()
+    finally:
+        await application.close()
+
+    assert summary.status is JobStatus.RESULT_READY
+    assert summary.attempt_id is not None
+    assert persisted_job is not None
+    assert persisted_job.status is JobStatus.RESULT_READY
+    assert persisted_job.completed_attempt_id == summary.attempt_id
+    assert len(attempts) == 1
+    assert attempts[0].raw_response_artifact_path == summary.raw_response_artifact_path
 
 
 def _app_settings(tmp_path: Path) -> AppSettings:

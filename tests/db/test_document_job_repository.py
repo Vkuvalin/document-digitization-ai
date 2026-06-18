@@ -108,6 +108,7 @@ async def test_document_job_repository_attaches_extraction_result(
                 job.id,
                 _extraction_result(),
                 validation_status="VALIDATION_SUCCEEDED",
+                completed_attempt_id="attempt-001",
             )
             await session.commit()
 
@@ -116,6 +117,7 @@ async def test_document_job_repository_attaches_extraction_result(
             persisted = await repository.require_job("job-result")
 
             assert persisted.validation_status == "VALIDATION_SUCCEEDED"
+            assert persisted.completed_attempt_id == "attempt-001"
             assert persisted.extraction_result_payload is not None
             assert persisted.extraction_result_payload["raw_text"]["text"] == "hello"
     finally:

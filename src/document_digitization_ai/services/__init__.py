@@ -4,12 +4,14 @@ from document_digitization_ai.services.intake import (
     DocumentIntakeService as DocumentIntakeService,
 )
 from document_digitization_ai.services.extraction_workflow import (
+    DocumentExtractionRunSummary as DocumentExtractionRunSummary,
     DocumentExtractionWorkflowError as DocumentExtractionWorkflowError,
     DocumentExtractionWorkflowResult as DocumentExtractionWorkflowResult,
     DocumentExtractionWorkflowService as DocumentExtractionWorkflowService,
 )
 
 __all__ = [
+    "DocumentExtractionRunSummary",
     "DocumentExtractionWorkflowError",
     "DocumentExtractionWorkflowResult",
     "DocumentExtractionWorkflowService",

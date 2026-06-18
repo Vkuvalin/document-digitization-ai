@@ -12,16 +12,23 @@ from document_digitization_ai.db import (
     create_async_session_factory,
     create_database_schema,
 )
-from document_digitization_ai.extraction import FakeExtractionProvider
+from document_digitization_ai.extraction import (
+    FakeExtractionProvider,
+    build_extraction_provider,
+)
 from document_digitization_ai.media import build_media_staging_service
 from document_digitization_ai.services import (
+    DocumentExtractionRunSummary,
     DocumentExtractionWorkflowError,
     DocumentExtractionWorkflowResult,
     DocumentExtractionWorkflowService,
     DocumentIntakeResult,
     DocumentIntakeService,
 )
-from document_digitization_ai.storage import JobArtifactLayout
+from document_digitization_ai.storage import (
+    ExtractionAttemptArtifactLayout,
+    JobArtifactLayout,
+)
 
 
 class LocalDocumentApplication:
@@ -79,6 +86,14 @@ class LocalDocumentApplication:
                 raise
             return result
 
+    async def run_real_extraction_from_image(
+        self,
+        source_image_path: str | Path,
+        user_mode_hint: DocumentModeHint = DocumentModeHint.AUTO,
+    ) -> DocumentExtractionRunSummary:
+        service = self._build_real_extraction_workflow_service()
+        return await service.run_from_image(source_image_path, user_mode_hint)
+
     async def close(self) -> None:
         await self._engine.dispose()
 
@@ -104,4 +119,29 @@ class LocalDocumentApplication:
                 self._settings.media_staging
             ),
             extraction_provider=FakeExtractionProvider(),
+        )
+
+    def _build_real_extraction_workflow_service(
+        self,
+    ) -> DocumentExtractionWorkflowService:
+        return DocumentExtractionWorkflowService(
+            repository=None,
+            extraction_settings=self._settings.extraction,
+            media_staging_service=build_media_staging_service(
+                self._settings.media_staging
+            ),
+            extraction_provider=build_extraction_provider(
+                self._settings.extraction,
+                openrouter_settings=self._settings.openrouter,
+            ),
+            session_factory=self._session_factory,
+            job_artifact_layout=JobArtifactLayout.from_storage_settings(
+                self._settings.storage
+            ),
+            attempt_artifact_layout=ExtractionAttemptArtifactLayout(
+                self._settings.storage.results_dir
+            ),
+            diagnostics_config=(
+                self._settings.image_diagnostics.to_diagnostics_config()
+            ),
         )

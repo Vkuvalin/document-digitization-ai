@@ -45,6 +45,7 @@ _ALLOWED_ATTEMPT_TRANSITIONS: Mapping[
 
 _REQUEST_TEXT_KEYS = frozenset(
     {
+        "media_backend",
         "provider_name",
         "model_name",
         "schema_version",
@@ -60,6 +61,7 @@ _REQUEST_TEXT_KEYS = frozenset(
 _REQUEST_INT_KEYS = frozenset({"media_count"})
 _REQUEST_BOOL_KEYS = frozenset(
     {
+        "external_upload_performed",
         "media_url_present",
         "structured_outputs_enabled",
         "provider_require_parameters",
@@ -199,6 +201,35 @@ class ExtractionAttemptLifecycleService:
             attempt.sanitized_response_size_bytes = _optional_non_negative_int(
                 sanitized_response_size_bytes,
                 "sanitized_response_size_bytes",
+            )
+            await repository.save(attempt)
+            await session.commit()
+            return attempt
+
+    async def record_media_staging_metadata(
+        self,
+        attempt_id: str,
+        *,
+        metadata: Mapping[str, object],
+    ) -> ExtractionAttempt:
+        async with self.session_factory() as session:
+            repository = ExtractionAttemptRepository(session)
+            attempt = await repository.require_attempt(attempt_id)
+            _ensure_expected_status(
+                attempt,
+                expected_status=ExtractionAttemptStatus.RUNNING,
+                operation="media staging metadata update",
+            )
+            merged_metadata = {
+                **attempt.request_metadata_json,
+                **dict(metadata),
+            }
+            attempt.request_metadata_json = build_safe_request_metadata(
+                provider_name=attempt.provider_name,
+                model_name=attempt.model_name,
+                schema_version=attempt.schema_version,
+                schema_mode=attempt.schema_mode,
+                metadata=merged_metadata,
             )
             await repository.save(attempt)
             await session.commit()

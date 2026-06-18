@@ -488,6 +488,58 @@ async def test_record_provider_response_artifacts_requires_running_and_preserves
         await engine.dispose()
 
 
+@pytest.mark.asyncio
+async def test_record_media_staging_metadata_requires_running_and_filters_values(
+    tmp_path: Path,
+) -> None:
+    engine, session_factory = await _session_factory(tmp_path, "media-metadata.db")
+    try:
+        await _create_job(session_factory, "job-media-metadata")
+        service = ExtractionAttemptLifecycleService(session_factory)
+
+        pending_attempt = await _create_attempt(service, "job-media-metadata")
+        with pytest.raises(
+            InvalidExtractionAttemptStatusTransitionError,
+            match="expected RUNNING",
+        ):
+            await service.record_media_staging_metadata(
+                pending_attempt.id,
+                metadata={"staged_media_kind": "public_url"},
+            )
+
+        running_attempt = await _create_attempt(service, "job-media-metadata")
+        await service.start_attempt(running_attempt.id)
+        recorded = await service.record_media_staging_metadata(
+            running_attempt.id,
+            metadata={
+                "media_backend": "imgbb",
+                "staged_media_kind": "public_url",
+                "media_url_present": True,
+                "media_url_host": "i.ibb.co",
+                "external_upload_performed": True,
+                "media_count": 1,
+                "media_url": "https://i.ibb.co/full-url-not-allowed",
+                "delete_url": "https://ibb.co/delete/private",
+                "local_path": r"C:\Users\User\document.jpg",
+            },
+        )
+
+        assert recorded.request_metadata_json == {
+            "external_upload_performed": True,
+            "media_backend": "imgbb",
+            "media_count": 1,
+            "media_url_host": "i.ibb.co",
+            "media_url_present": True,
+            "model_name": "openai/test-vision",
+            "provider_name": "openrouter",
+            "schema_mode": "compact",
+            "schema_version": "v1",
+            "staged_media_kind": "public_url",
+        }
+    finally:
+        await engine.dispose()
+
+
 def test_attempt_artifact_writer_uses_relative_paths_and_deterministic_json(
     tmp_path: Path,
 ) -> None:

@@ -354,6 +354,10 @@ async def test_openrouter_provider_parses_success_response_and_calls_fake_client
     assert response.metadata["usage"] == {"prompt_tokens": 10, "completion_tokens": 20}
     assert response.metadata["provider"] == "openai"
     assert response.metadata["provider_response_id"] == "cmpl-test"
+    assert response.raw_response_json is not None
+    raw_response = cast(Mapping[str, object], response.raw_response_json)
+    assert raw_response["id"] == "cmpl-test"
+    assert "choices" in raw_response
     assert not isinstance(response, ExtractionResult)
 
 

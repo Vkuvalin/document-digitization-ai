@@ -113,10 +113,12 @@ class DocumentJobRepository:
         result: ExtractionResult,
         *,
         validation_status: str | None = None,
+        completed_attempt_id: str | None = None,
     ) -> DocumentJob:
         job = await self.require_job(job_id)
         job.extraction_result_payload = result.to_dict()
         job.validation_status = validation_status
+        job.completed_attempt_id = completed_attempt_id
         await self._session.flush()
         return job
 

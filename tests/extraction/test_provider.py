@@ -117,6 +117,14 @@ def test_provider_response_rejects_non_finite_json_payload_and_metadata() -> Non
             metadata={"duration": float("-inf")},
         )
 
+    with pytest.raises(ValueError, match="raw_response_json"):
+        ExtractionProviderResponse(
+            provider_name="fake",
+            model_name="fake-model-v0",
+            raw_payload={},
+            raw_response_json={"not_json": {object()}},
+        )
+
 
 def _provider_context(tmp_path: Path) -> ProviderInputContext:
     image_path = tmp_path / "original.jpg"

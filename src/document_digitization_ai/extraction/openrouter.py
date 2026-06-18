@@ -118,6 +118,7 @@ class OpenRouterExtractionProvider:
         )
         response = await self._create_completion(kwargs)
         parsed_content, finish_reason, metadata = _parse_completion_response(response)
+        raw_response_json = _safe_completion_response_json(response)
         return ExtractionProviderResponse(
             provider_name="openrouter",
             model_name=_extract_response_model(
@@ -128,6 +129,7 @@ class OpenRouterExtractionProvider:
             raw_text=_extract_raw_text(parsed_content),
             finish_reason=finish_reason,
             metadata=metadata,
+            raw_response_json=raw_response_json,
         )
 
     async def _create_completion(
@@ -283,6 +285,54 @@ def _parse_completion_response(
     if response_id is not None:
         metadata["provider_response_id"] = response_id
     return parsed_content, finish_reason, metadata
+
+
+def _safe_completion_response_json(response: object) -> Mapping[str, object]:
+    dumped = _mapping_from_jsonish_object(response, "response")
+    if dumped is not None:
+        return dumped
+
+    payload: dict[str, object] = {}
+    for key in ("id", "model", "provider", "object", "created"):
+        value = _get_value(response, key)
+        if value is not None:
+            payload[key] = _json_value(value, f"response.{key}")
+
+    choices = _get_value(response, "choices")
+    if isinstance(choices, list):
+        payload["choices"] = [
+            _safe_completion_choice(choice, index)
+            for index, choice in enumerate(choices)
+        ]
+
+    usage = _mapping_from_jsonish_object(_get_value(response, "usage"), "response.usage")
+    if usage is not None:
+        payload["usage"] = dict(usage)
+
+    return _json_mapping(payload, "response")
+
+
+def _safe_completion_choice(choice: object, index: int) -> Mapping[str, object]:
+    payload: dict[str, object] = {}
+    finish_reason = _optional_text(_get_value(choice, "finish_reason"))
+    if finish_reason is not None:
+        payload["finish_reason"] = finish_reason
+
+    message = _get_value(choice, "message")
+    if message is not None:
+        message_payload: dict[str, object] = {}
+        role = _optional_text(_get_value(message, "role"))
+        if role is not None:
+            message_payload["role"] = role
+        content = _get_value(message, "content")
+        if content is not None:
+            message_payload["content"] = _json_value(
+                content,
+                f"response.choices[{index}].message.content",
+            )
+        payload["message"] = message_payload
+
+    return _json_mapping(payload, f"response.choices[{index}]")
 
 
 def _parse_message_content(content: object) -> Mapping[str, object]:
@@ -1050,7 +1100,7 @@ def _require_string_list(value: object, field_name: str) -> tuple[str, ...]:
     return tuple(values)
 
 
-def _json_mapping(value: Mapping[object, object], field_name: str) -> Mapping[str, object]:
+def _json_mapping(value: Mapping[Any, object], field_name: str) -> Mapping[str, object]:
     result: dict[str, object] = {}
     for key, item in value.items():
         if not isinstance(key, str) or not key.strip():

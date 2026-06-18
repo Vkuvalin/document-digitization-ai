@@ -48,11 +48,16 @@ def test_job_status_transitions_allow_success_and_partial_paths() -> None:
 def test_job_status_transitions_reject_skips_and_terminal_moves() -> None:
     assert not can_transition_job_status(JobStatus.CREATED, JobStatus.RESULT_READY)
     assert not can_transition_job_status(JobStatus.RESULT_READY, JobStatus.FAILED)
+    assert can_transition_job_status(
+        JobStatus.IMAGE_DIAGNOSTICS_READY,
+        JobStatus.EXTRACTION_RUNNING,
+    )
 
 
 def test_terminal_job_statuses_match_approved_terminal_states() -> None:
     assert TERMINAL_JOB_STATUSES == frozenset(
         {
+            JobStatus.RESULT_READY,
             JobStatus.FAILED,
             JobStatus.CANCELLED,
         }

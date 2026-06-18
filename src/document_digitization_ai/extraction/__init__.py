@@ -44,6 +44,7 @@ from document_digitization_ai.extraction.validation import (
     ProviderOutputValidationOutcome as ProviderOutputValidationOutcome,
     ProviderOutputValidationResult as ProviderOutputValidationResult,
     image_diagnostics_from_payload as image_diagnostics_from_payload,
+    sanitize_provider_payload as sanitize_provider_payload,
     validate_provider_output as validate_provider_output,
 )
 
@@ -81,5 +82,6 @@ __all__ = [
     "build_openrouter_chat_completion_payload",
     "build_openrouter_response_format",
     "image_diagnostics_from_payload",
+    "sanitize_provider_payload",
     "validate_provider_output",
 ]

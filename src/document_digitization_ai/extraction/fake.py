@@ -47,19 +47,27 @@ class FakeExtractionProvider:
         if self.fail_with_message is not None:
             raise FakeExtractionProviderError(self.fail_with_message)
 
+        metadata = {
+            "correlation_id": request.correlation_id,
+            "job_id": request.context.job_id,
+            "staged_media_kind": (
+                request.staged_media.kind.value
+                if request.staged_media is not None
+                else None
+            ),
+        }
         return ExtractionProviderResponse(
             provider_name=self.provider_name,
             model_name=self.model_name,
             raw_payload=self.raw_payload,
             raw_text=self.raw_text,
             finish_reason="fake_complete",
-            metadata={
-                "correlation_id": request.correlation_id,
-                "job_id": request.context.job_id,
-                "staged_media_kind": (
-                    request.staged_media.kind.value
-                    if request.staged_media is not None
-                    else None
-                ),
+            metadata=metadata,
+            raw_response_json={
+                "provider": self.provider_name,
+                "model": self.model_name,
+                "finish_reason": "fake_complete",
+                "payload": self.raw_payload,
+                "metadata": metadata,
             },
         )

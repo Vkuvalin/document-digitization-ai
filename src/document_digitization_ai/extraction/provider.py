@@ -106,6 +106,7 @@ class ExtractionProviderResponse:
     finish_reason: str | None = None
     warnings: tuple[str, ...] = field(default_factory=tuple)
     metadata: Mapping[str, object] = field(default_factory=dict)
+    raw_response_json: object | None = None
 
     def __post_init__(self) -> None:
         _ensure_non_empty_text(self.provider_name, "provider_name")
@@ -116,6 +117,7 @@ class ExtractionProviderResponse:
         for warning in self.warnings:
             _ensure_non_empty_text(warning, "warnings")
         _ensure_json_object(self.metadata, "metadata")
+        _ensure_json_compatible(self.raw_response_json, "raw_response_json")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -126,6 +128,7 @@ class ExtractionProviderResponse:
             "finish_reason": self.finish_reason,
             "warnings": list(self.warnings),
             "metadata": dict(self.metadata),
+            "raw_response_json": self.raw_response_json,
         }
 
 

@@ -50,6 +50,7 @@ class DocumentJob(Base):
     image_diagnostics_payload: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     extraction_result_payload: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     validation_status: Mapped[str | None] = mapped_column(String(64))
+    completed_attempt_id: Mapped[str | None] = mapped_column(String(64))
     error_message: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
