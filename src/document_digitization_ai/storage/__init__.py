@@ -4,7 +4,9 @@ from document_digitization_ai.storage.artifacts import (
     ExtractionAttemptArtifactPaths as ExtractionAttemptArtifactPaths,
     JobArtifactLayout as JobArtifactLayout,
     JobArtifactPaths as JobArtifactPaths,
+    MarkdownExportArtifactLayout as MarkdownExportArtifactLayout,
     StoredExtractionAttemptArtifact as StoredExtractionAttemptArtifact,
+    StoredMarkdownExportArtifact as StoredMarkdownExportArtifact,
 )
 
 __all__ = [
@@ -13,5 +15,7 @@ __all__ = [
     "ExtractionAttemptArtifactPaths",
     "JobArtifactLayout",
     "JobArtifactPaths",
+    "MarkdownExportArtifactLayout",
     "StoredExtractionAttemptArtifact",
+    "StoredMarkdownExportArtifact",
 ]

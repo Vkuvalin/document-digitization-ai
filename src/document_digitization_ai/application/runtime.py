@@ -8,6 +8,7 @@ from document_digitization_ai.contracts import DocumentModeHint
 from document_digitization_ai.core import AppSettings
 from document_digitization_ai.db import (
     DocumentJobRepository,
+    ExtractionAttemptRepository,
     create_async_engine_from_url,
     create_async_session_factory,
     create_database_schema,
@@ -24,10 +25,14 @@ from document_digitization_ai.services import (
     DocumentExtractionWorkflowService,
     DocumentIntakeResult,
     DocumentIntakeService,
+    DocumentResultExportService,
+    MarkdownExportResult,
 )
 from document_digitization_ai.storage import (
+    ArtifactLayoutError,
     ExtractionAttemptArtifactLayout,
     JobArtifactLayout,
+    MarkdownExportArtifactLayout,
 )
 
 
@@ -94,6 +99,24 @@ class LocalDocumentApplication:
         service = self._build_real_extraction_workflow_service()
         return await service.run_from_image(source_image_path, user_mode_hint)
 
+    async def export_result_markdown(
+        self,
+        job_id: str,
+        *,
+        write_artifact: bool = True,
+    ) -> MarkdownExportResult:
+        async with self._session_factory() as session:
+            service = self._build_result_export_service(session)
+            result = await service.export_job_result_markdown(job_id)
+
+        if (
+            not write_artifact
+            or not result.result_available
+            or result.markdown is None
+        ):
+            return result
+        return self._write_markdown_export_artifact(result)
+
     async def close(self) -> None:
         await self._engine.dispose()
 
@@ -120,6 +143,43 @@ class LocalDocumentApplication:
             ),
             extraction_provider=FakeExtractionProvider(),
         )
+
+    def _build_result_export_service(
+        self,
+        session: AsyncSession,
+    ) -> DocumentResultExportService:
+        return DocumentResultExportService(
+            repository=DocumentJobRepository(session),
+            attempt_repository=ExtractionAttemptRepository(session),
+        )
+
+    def _write_markdown_export_artifact(
+        self,
+        result: MarkdownExportResult,
+    ) -> MarkdownExportResult:
+        if result.markdown is None:
+            return result
+        try:
+            artifact = self._build_markdown_export_artifact_layout().write_markdown_artifact(
+                job_id=result.job_id,
+                markdown=result.markdown,
+            )
+        except (ArtifactLayoutError, OSError):
+            return MarkdownExportResult(
+                job_id=result.job_id,
+                result_available=False,
+                error_type="artifact_write_failed",
+                error_message="Markdown export artifact could not be written.",
+            )
+        return MarkdownExportResult(
+            job_id=result.job_id,
+            result_available=True,
+            markdown=result.markdown,
+            artifact_path=artifact.relative_path,
+        )
+
+    def _build_markdown_export_artifact_layout(self) -> MarkdownExportArtifactLayout:
+        return MarkdownExportArtifactLayout(self._settings.storage.results_dir)
 
     def _build_real_extraction_workflow_service(
         self,

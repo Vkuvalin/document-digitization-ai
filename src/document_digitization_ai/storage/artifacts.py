@@ -37,6 +37,12 @@ class StoredExtractionAttemptArtifact:
 
 
 @dataclass(frozen=True, slots=True)
+class StoredMarkdownExportArtifact:
+    relative_path: str
+    size_bytes: int
+
+
+@dataclass(frozen=True, slots=True)
 class JobArtifactLayout:
     uploads_root: Path
     results_root: Path
@@ -151,6 +157,33 @@ class ExtractionAttemptArtifactLayout:
         data = f"{serialized}\n".encode("utf-8")
         target_path.write_bytes(data)
         return StoredExtractionAttemptArtifact(
+            relative_path=relative_path,
+            size_bytes=len(data),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class MarkdownExportArtifactLayout:
+    artifact_root: Path
+
+    def relative_path(self, job_id: str) -> str:
+        safe_job_id = _validate_path_segment(job_id, "job_id")
+        return validate_relative_artifact_path(
+            f"jobs/{safe_job_id}/exports/result.md"
+        )
+
+    def write_markdown_artifact(
+        self,
+        *,
+        job_id: str,
+        markdown: str,
+    ) -> StoredMarkdownExportArtifact:
+        relative_path = self.relative_path(job_id)
+        target_path = _safe_artifact_target_path(self.artifact_root, relative_path)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        data = markdown.encode("utf-8")
+        target_path.write_bytes(data)
+        return StoredMarkdownExportArtifact(
             relative_path=relative_path,
             size_bytes=len(data),
         )

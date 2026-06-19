@@ -4,7 +4,11 @@ from pathlib import Path
 import pytest
 
 from document_digitization_ai.core import StorageSettings
-from document_digitization_ai.storage import ArtifactLayoutError, JobArtifactLayout
+from document_digitization_ai.storage import (
+    ArtifactLayoutError,
+    JobArtifactLayout,
+    MarkdownExportArtifactLayout,
+)
 
 
 def test_job_artifact_layout_builds_deterministic_paths(tmp_path: Path) -> None:
@@ -85,3 +89,30 @@ def test_job_artifact_layout_rejects_unsafe_path_segments(tmp_path: Path) -> Non
 
     with pytest.raises(ArtifactLayoutError):
         layout.original_upload_path("job-004", "bad\\jpg")
+
+
+def test_markdown_export_artifact_layout_writes_relative_result_md(
+    tmp_path: Path,
+) -> None:
+    layout = MarkdownExportArtifactLayout(tmp_path / "results")
+
+    artifact = layout.write_markdown_artifact(
+        job_id="job-005",
+        markdown="# Result\n",
+    )
+
+    assert artifact.relative_path == "jobs/job-005/exports/result.md"
+    assert artifact.size_bytes == len("# Result\n".encode("utf-8"))
+    assert not Path(artifact.relative_path).is_absolute()
+    assert (
+        tmp_path / "results" / "jobs" / "job-005" / "exports" / "result.md"
+    ).read_text(encoding="utf-8") == "# Result\n"
+
+
+def test_markdown_export_artifact_layout_rejects_unsafe_job_id(
+    tmp_path: Path,
+) -> None:
+    layout = MarkdownExportArtifactLayout(tmp_path / "results")
+
+    with pytest.raises(ArtifactLayoutError):
+        layout.relative_path("../job")

@@ -15,6 +15,10 @@ from document_digitization_ai.services import (
     DocumentExtractionWorkflowError,
     DocumentIntakeError,
 )
+from document_digitization_ai.storage import (
+    MarkdownExportArtifactLayout,
+    StoredMarkdownExportArtifact,
+)
 
 
 @pytest.mark.asyncio
@@ -113,6 +117,69 @@ async def test_application_fake_extraction_commits_result_ready_job(
 
 
 @pytest.mark.asyncio
+async def test_application_exports_fake_extraction_result_markdown(
+    tmp_path: Path,
+) -> None:
+    source_image_path = tmp_path / "source.jpg"
+    _save_rgb_image(source_image_path, size=(120, 120), color=(128, 128, 128))
+    application = LocalDocumentApplication(_app_settings(tmp_path))
+    try:
+        await application.initialize_database()
+        intake_result = await application.intake_local_image(
+            source_image_path,
+            DocumentModeHint.PLAIN_TEXT,
+        )
+        await application.run_fake_extraction(intake_result.job_id)
+
+        export_result = await application.export_result_markdown(intake_result.job_id)
+    finally:
+        await application.close()
+
+    assert export_result.result_available is True
+    assert export_result.markdown is not None
+    assert export_result.artifact_path is not None
+    artifact_relative_path = export_result.artifact_path
+    assert "Deterministic fake extracted text." in export_result.markdown
+    assert artifact_relative_path == f"jobs/{intake_result.job_id}/exports/result.md"
+    assert not Path(artifact_relative_path).is_absolute()
+
+
+@pytest.mark.asyncio
+async def test_application_export_artifact_write_failure_is_safe(
+    tmp_path: Path,
+) -> None:
+    source_image_path = tmp_path / "source.jpg"
+    _save_rgb_image(source_image_path, size=(120, 120), color=(128, 128, 128))
+    application = FailingArtifactExportApplication(_app_settings(tmp_path))
+    try:
+        await application.initialize_database()
+        intake_result = await application.intake_local_image(
+            source_image_path,
+            DocumentModeHint.PLAIN_TEXT,
+        )
+        await application.run_fake_extraction(intake_result.job_id)
+
+        export_result = await application.export_result_markdown(intake_result.job_id)
+        session_factory = create_async_session_factory(application.engine)
+        async with session_factory() as session:
+            persisted_job = await session.get(DocumentJob, intake_result.job_id)
+    finally:
+        await application.close()
+
+    assert export_result.result_available is False
+    assert export_result.error_type == "artifact_write_failed"
+    assert export_result.error_message == (
+        "Markdown export artifact could not be written."
+    )
+    assert export_result.markdown is None
+    assert export_result.artifact_path is None
+    assert persisted_job is not None
+    assert persisted_job.status is JobStatus.RESULT_READY
+    assert str(tmp_path) not in (export_result.error_message or "")
+    assert r"C:\Users" not in (export_result.error_message or "")
+
+
+@pytest.mark.asyncio
 async def test_application_fake_extraction_failure_persists_failed_job_state(
     tmp_path: Path,
 ) -> None:
@@ -186,6 +253,21 @@ def _app_settings(tmp_path: Path) -> AppSettings:
         },
     )
     return AppSettings(**kwargs)
+
+
+class FailingArtifactExportApplication(LocalDocumentApplication):
+    def _build_markdown_export_artifact_layout(self) -> MarkdownExportArtifactLayout:
+        return FailingMarkdownExportArtifactLayout(self.settings.storage.results_dir)
+
+
+class FailingMarkdownExportArtifactLayout(MarkdownExportArtifactLayout):
+    def write_markdown_artifact(
+        self,
+        *,
+        job_id: str,
+        markdown: str,
+    ) -> StoredMarkdownExportArtifact:
+        raise OSError(r"C:\Users\User\secret\result.md")
 
 
 async def _table_names(engine: AsyncEngine) -> set[str]:
