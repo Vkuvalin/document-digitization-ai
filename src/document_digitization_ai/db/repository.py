@@ -69,6 +69,31 @@ class DocumentJobRepository:
             raise JobNotFoundError(msg)
         return job
 
+    async def list_jobs(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        status: JobStatus | None = None,
+    ) -> tuple[DocumentJob, ...]:
+        statement = select(DocumentJob)
+        if status is not None:
+            statement = statement.where(DocumentJob.status == status)
+        statement = (
+            statement.order_by(DocumentJob.created_at.desc(), DocumentJob.id.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        jobs = await self._session.scalars(statement)
+        return tuple(jobs.all())
+
+    async def count_jobs(self, *, status: JobStatus | None = None) -> int:
+        statement = select(func.count()).select_from(DocumentJob)
+        if status is not None:
+            statement = statement.where(DocumentJob.status == status)
+        count = await self._session.scalar(statement)
+        return int(count or 0)
+
     async def update_status(
         self,
         job_id: str,
