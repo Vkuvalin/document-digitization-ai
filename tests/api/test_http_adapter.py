@@ -332,7 +332,13 @@ def test_http_adapter_boundaries() -> None:
             for imported_module in imported_modules
         )
 
-    assert not Path("src/document_digitization_ai/web").exists()
+    web_path = Path("src/document_digitization_ai/web")
+    assert web_path.exists()
+    assert (web_path / "static" / "index.html").exists()
+    for path in web_path.rglob("*.py"):
+        assert not _imports_module(path, "fastapi")
+        assert not _imports_module(path, "starlette")
+        assert not _imports_module(path, "document_digitization_ai.api")
     assert not Path("src/document_digitization_ai/templates").exists()
     assert not Path("src/document_digitization_ai/static").exists()
 

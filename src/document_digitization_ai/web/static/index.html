@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DocuStruct AI — статический прототип</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <button class="brand-button" type="button" id="brandButton" aria-label="На главную">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" role="img">
+              <rect x="7" y="4" width="18" height="24" rx="4"></rect>
+              <path d="M12 11h8M12 16h8M12 21h5"></path>
+            </svg>
+          </span>
+          <span class="brand-text">DocuStruct AI</span>
+        </button>
+
+        <nav class="top-nav" aria-label="Основная навигация">
+          <button type="button" data-info-panel="what">Что это</button>
+          <button type="button" data-info-panel="pricing">Цены</button>
+          <button type="button" data-info-panel="help">Помощь</button>
+        </nav>
+
+        <div class="header-actions">
+          <button class="button button-ghost" type="button" id="openJobsButton">
+            <span class="button-icon" aria-hidden="true">▦</span>
+            Мои файлы
+          </button>
+          <button class="button button-outline" type="button" id="loginButton">Войти</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero-section" aria-labelledby="heroTitle">
+        <div class="hero-copy">
+          <p class="eyebrow">Рабочая область распознавания</p>
+          <h1 id="heroTitle">Оцифровка документов в структурированные поля, таблицы и Markdown</h1>
+          <p class="hero-subtitle">
+            Загрузите документ и посмотрите, как интерфейс показывает результат распознавания,
+            предупреждения, таблицы и экспорт в одной рабочей области.
+          </p>
+          <ul class="trust-list" aria-label="Ключевые возможности">
+            <li>Поля, таблицы и предупреждения рядом с предпросмотром</li>
+            <li>Markdown можно скопировать или скачать локально</li>
+            <li>Список файлов остаётся доступен во время проверки результата</li>
+          </ul>
+        </div>
+
+        <section class="upload-card" aria-labelledby="uploadTitle">
+          <div class="upload-card-header">
+            <div>
+              <p class="section-kicker">Новый документ</p>
+              <h2 id="uploadTitle">Загрузка файла</h2>
+            </div>
+            <span class="status-pill status-pill-neutral">Демо-режим</span>
+          </div>
+
+          <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Выбрать или перетащить файл">
+            <input id="fileInput" type="file" accept="image/*,.pdf,.png,.jpg,.jpeg,.webp" hidden />
+            <div class="dropzone-icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48">
+                <path d="M24 31V12"></path>
+                <path d="M16 20l8-8 8 8"></path>
+                <path d="M14 36h20a6 6 0 0 0 0-12h-1"></path>
+              </svg>
+            </div>
+            <h3>Перетащите файл сюда</h3>
+            <p>или выберите изображение/PDF с компьютера. Вставка из буфера появится позже.</p>
+            <button class="button button-primary" type="button" id="chooseFileButton">Выбрать файл</button>
+          </div>
+
+          <div class="selected-file is-hidden" id="selectedFilePanel" aria-live="polite">
+            <div class="preview-frame" id="previewFrame">
+              <span>Предпросмотр</span>
+            </div>
+            <div class="selected-file-meta">
+              <span class="selected-label">Выбран файл</span>
+              <strong id="selectedFileName">document.png</strong>
+              <span id="selectedFileSize">0 KB</span>
+            </div>
+            <button class="icon-button" type="button" id="clearFileButton" aria-label="Убрать выбранный файл">×</button>
+          </div>
+
+          <div class="settings-panel is-hidden" id="settingsPanel">
+            <div class="settings-header">
+              <h3>Настройки результата</h3>
+              <span>Только для прототипа</span>
+            </div>
+            <div class="settings-grid">
+              <label class="setting-row">
+                <span>Формат вывода</span>
+                <select id="outputFormat">
+                  <option>Markdown</option>
+                </select>
+              </label>
+              <label class="switch-row">
+                <span>Показывать предупреждения</span>
+                <input id="showWarningsToggle" type="checkbox" checked />
+              </label>
+              <label class="switch-row">
+                <span>Показывать исходный текст</span>
+                <input id="showRawTextToggle" type="checkbox" checked />
+              </label>
+              <label class="setting-row is-disabled">
+                <span>Восстановление макета</span>
+                <select disabled>
+                  <option>Позже</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="upload-actions">
+            <span class="upload-note" id="uploadNote">Выберите файл для просмотра результата.</span>
+            <button class="button button-primary analyze-button" type="button" id="analyzeButton" disabled>
+              Анализировать
+            </button>
+          </div>
+        </section>
+      </section>
+
+      <section class="feature-section" aria-labelledby="featureTitle">
+        <div class="section-heading">
+          <p class="section-kicker">Что видно в результате</p>
+          <h2 id="featureTitle">Основные поверхности проверки</h2>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">П</span>
+            <h3>Структурные поля</h3>
+            <p>Тип документа, язык, метаданные и статус проверки собраны в сводке.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">Т</span>
+            <h3>Таблицы и значения</h3>
+            <p>Извлечённые поля и таблицы разведены по вкладкам для быстрой сверки.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon warning" aria-hidden="true">!</span>
+            <h3>Предупреждения</h3>
+            <p>Мягкие статусы помогают найти низкую уверенность и спорные фрагменты.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon success" aria-hidden="true">M</span>
+            <h3>Экспорт Markdown</h3>
+            <p>Markdown показывается как читаемый предпросмотр и доступен для скачивания.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>DocuStruct AI</strong>
+        <p>Статическая рабочая область для проверки визуального направления распознавания документов.</p>
+      </div>
+      <nav aria-label="Ссылки подвала">
+        <button type="button" data-info-panel="help">Помощь</button>
+        <button type="button" data-info-panel="privacy">Конфиденциальность</button>
+        <button type="button" data-info-panel="terms">Условия</button>
+      </nav>
+      <span>© <span id="currentYear">2026</span></span>
+    </footer>
+
+    <div class="workspace-backdrop is-hidden" id="workspaceBackdrop" aria-hidden="true"></div>
+    <section class="workspace-overlay is-hidden" id="workspaceOverlay" role="dialog" aria-modal="true" aria-labelledby="workspaceTitle">
+      <div class="workspace-header">
+        <div>
+          <p class="section-kicker">Рабочая область</p>
+          <h2 id="workspaceTitle">Файлы и результат</h2>
+        </div>
+        <button class="icon-button" type="button" id="closeWorkspaceButton" aria-label="Закрыть рабочую область">×</button>
+      </div>
+
+      <div class="workspace-grid">
+        <aside class="workspace-preview-panel" aria-labelledby="previewTitle">
+          <div class="panel-heading">
+            <h3 id="previewTitle">Предпросмотр</h3>
+            <span class="status-pill status-pill-neutral" id="previewStatus">Не выбран</span>
+          </div>
+          <div class="workspace-preview" id="workspacePreview">
+            <span>Выберите файл для просмотра</span>
+          </div>
+          <div class="result-meta" id="workspaceMeta"></div>
+        </aside>
+
+        <section class="workspace-result-panel" aria-labelledby="resultTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="section-kicker">Результат анализа</p>
+              <h3 id="resultTitle">Выберите файл для просмотра</h3>
+            </div>
+          </div>
+
+          <div class="workspace-empty" id="workspaceEmpty">
+            <strong>Выберите файл<br />для просмотра</strong>
+            <p>После выбора здесь появятся сводка, поля, таблицы и Markdown.</p>
+          </div>
+
+          <div class="workspace-result-content is-hidden" id="workspaceResultContent">
+            <div class="result-actions">
+              <div class="tab-list" role="tablist" aria-label="Вкладки результата">
+                <button type="button" class="is-active" role="tab" data-result-tab="summary">Сводка</button>
+                <button type="button" role="tab" data-result-tab="warnings">Предупреждения</button>
+                <button type="button" role="tab" data-result-tab="fields">Поля</button>
+                <button type="button" role="tab" data-result-tab="tables">Таблицы</button>
+                <button type="button" role="tab" data-result-tab="raw">Текст</button>
+                <button type="button" role="tab" data-result-tab="markdown">Markdown</button>
+              </div>
+              <div class="action-group">
+                <button class="button button-outline" type="button" id="copyMarkdownButton">Копировать Markdown</button>
+                <button class="button button-outline" type="button" id="downloadMarkdownButton">Скачать Markdown</button>
+              </div>
+            </div>
+            <div class="tab-panel" id="resultTabPanel" tabindex="0"></div>
+          </div>
+        </section>
+
+        <aside class="workspace-files-panel" aria-labelledby="filesTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="section-kicker" id="filesTitle">Мои файлы</p>
+            </div>
+          </div>
+          <div class="job-list" id="workspaceJobList"></div>
+        </aside>
+      </div>
+    </section>
+
+    <div class="modal-backdrop is-hidden" id="infoBackdrop" aria-hidden="true"></div>
+    <section class="info-modal is-hidden" id="infoModal" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+      <div class="modal-header">
+        <div>
+          <p class="section-kicker">Справка</p>
+          <h2 id="infoTitle">Информация</h2>
+        </div>
+        <button class="icon-button" type="button" id="closeInfoButton" aria-label="Закрыть">×</button>
+      </div>
+      <p id="infoBody"></p>
+    </section>
+
+    <div class="toast is-hidden" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="./js/sampleData.js"></script>
+    <script src="./js/uiResultDialog.js"></script>
+    <script src="./js/uiJobs.js"></script>
+    <script src="./js/uiUpload.js"></script>
+    <script src="./js/app.js"></script>
+  </body>
+</html>
