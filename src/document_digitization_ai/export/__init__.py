@@ -1,5 +1,6 @@
 from document_digitization_ai.export.builder import (
     build_extraction_result_export_document as build_extraction_result_export_document,
+    count_extraction_result_warnings as count_extraction_result_warnings,
 )
 from document_digitization_ai.export.markdown import (
     format_confidence as format_confidence,
@@ -35,6 +36,7 @@ __all__ = [
     "ExportWarningRow",
     "ExtractionResultReconstructionError",
     "build_extraction_result_export_document",
+    "count_extraction_result_warnings",
     "format_confidence",
     "format_empty",
     "markdown_table_cell",

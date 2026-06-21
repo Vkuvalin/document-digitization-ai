@@ -54,7 +54,11 @@ async def test_export_job_result_markdown_renders_without_artifact_or_status_mut
         assert result.markdown is not None
         assert result.artifact_path is None
         assert "Persisted text" in result.markdown
-        assert "| Validation outcome | VALIDATION_SUCCEEDED |" in result.markdown
+        assert "Проверка пройдена" in result.markdown
+        assert "Extraction Metadata" not in result.markdown
+        assert "Provider" not in result.markdown
+        assert "openai/test-vision" not in result.markdown
+        assert job_id not in result.markdown
         assert persisted_job is not None
         assert persisted_job.status is JobStatus.RESULT_READY
         assert not (
@@ -152,7 +156,8 @@ async def test_export_summary_uses_attempt_validation_when_job_status_missing(
 
         assert result.result_available is True
         assert result.markdown is not None
-        assert "| Validation outcome | partial |" in result.markdown
+        assert "Частичная проверка" in result.markdown
+        assert "partial |" not in result.markdown
     finally:
         await engine.dispose()
 
@@ -176,7 +181,8 @@ async def test_export_summary_uses_unknown_without_explicit_validation_metadata(
 
         assert result.result_available is True
         assert result.markdown is not None
-        assert "| Validation outcome | unknown |" in result.markdown
+        assert "Неизвестно" in result.markdown
+        assert "unknown |" not in result.markdown
         assert "partial |" not in result.markdown
     finally:
         await engine.dispose()

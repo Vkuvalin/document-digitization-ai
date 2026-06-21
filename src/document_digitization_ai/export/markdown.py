@@ -64,11 +64,11 @@ def _render_summary(
 ) -> list[str]:
     lines = _section_header(section)
     if not export_document.summary_items:
-        lines.append("No summary is available.")
+        lines.append("Сводка недоступна.")
         return lines
     lines.extend(
         _markdown_table(
-            ("Item", "Value"),
+            ("Показатель", "Значение"),
             tuple((item.key, item.value) for item in export_document.summary_items),
         )
     )
@@ -81,15 +81,14 @@ def _render_warnings(
 ) -> list[str]:
     lines = _section_header(section)
     if not export_document.warning_rows:
-        lines.append("No warnings were reported.")
+        lines.append("Предупреждений нет.")
         return lines
     lines.extend(
         _markdown_table(
-            ("Severity", "Code", "Target", "Message"),
+            ("Уровень", "Источник", "Сообщение"),
             tuple(
                 (
                     row.severity,
-                    row.code,
                     row.target,
                     row.message,
                 )
@@ -106,11 +105,11 @@ def _render_fields(
 ) -> list[str]:
     lines = _section_header(section)
     if not export_document.field_rows:
-        lines.append("No standalone fields were extracted.")
+        lines.append("Поля не извлечены.")
         return lines
     lines.extend(
         _markdown_table(
-            ("Label", "Value", "Confidence", "Notes"),
+            ("Поле", "Значение", "Уверенность", "Примечания"),
             tuple(
                 (
                     row.label,
@@ -120,7 +119,6 @@ def _render_fields(
                 )
                 for row in export_document.field_rows
             ),
-            aligns=("", "", "---:", ""),
         )
     )
     return lines
@@ -132,14 +130,16 @@ def _render_tables(
 ) -> list[str]:
     lines = _section_header(section)
     if not export_document.table_sections:
-        lines.append("No tables were extracted.")
+        lines.append("Таблицы не извлечены.")
         return lines
     for index, table in enumerate(export_document.table_sections, start=1):
-        title = table.title or f"Table {index}"
-        lines.extend(("", f"### Table {index} — {title}", ""))
+        title = table.title or f"Таблица {index}"
+        if index > 1:
+            lines.append("")
+        lines.extend((f"### Таблица {index} — {title}", ""))
         table_columns = _table_columns(table.columns, table.rows)
         if not table.rows:
-            lines.append("No rows were extracted for this table.")
+            lines.append("Строки таблицы не извлечены.")
             continue
         rows = tuple(_padded_cells(row.cells, len(table_columns)) for row in table.rows)
         lines.extend(_markdown_table(table_columns, rows))
@@ -153,7 +153,7 @@ def _render_raw_text(
     lines = _section_header(section)
     raw_text = export_document.raw_text
     if raw_text is None or not raw_text.strip():
-        lines.append("No raw text was extracted.")
+        lines.append("Текст не извлечён.")
         return lines
     fence = _code_fence_ticks(raw_text)
     lines.append(f"{fence}text")
@@ -168,11 +168,11 @@ def _render_text_blocks(
 ) -> list[str]:
     lines = _section_header(section)
     if not export_document.block_rows:
-        lines.append("No text blocks were extracted.")
+        lines.append("Текстовые блоки не извлечены.")
         return lines
     lines.extend(
         _markdown_table(
-            ("Order", "Type", "Text", "Confidence"),
+            ("Порядок", "Тип", "Текст", "Уверенность"),
             tuple(
                 (
                     row.order,
@@ -182,7 +182,6 @@ def _render_text_blocks(
                 )
                 for row in export_document.block_rows
             ),
-            aligns=("---:", "", "", "---:"),
         )
     )
     return lines
@@ -194,11 +193,11 @@ def _render_image_diagnostics(
 ) -> list[str]:
     lines = _section_header(section)
     if not export_document.diagnostics_items:
-        lines.append("No image diagnostics are available.")
+        lines.append("Сведения о качестве изображения недоступны.")
         return lines
     lines.extend(
         _markdown_table(
-            ("Metric", "Value"),
+            ("Показатель", "Значение"),
             tuple((item.key, item.value) for item in export_document.diagnostics_items),
         )
     )
@@ -211,11 +210,11 @@ def _render_extraction_metadata(
 ) -> list[str]:
     lines = _section_header(section)
     if not export_document.metadata_items:
-        lines.append("No extraction metadata is available.")
+        lines.append("Метаданные извлечения недоступны.")
         return lines
     lines.extend(
         _markdown_table(
-            ("Key", "Value"),
+            ("Ключ", "Значение"),
             tuple((item.key, item.value) for item in export_document.metadata_items),
         )
     )
@@ -229,31 +228,41 @@ def _section_header(section: ExportSection) -> list[str]:
 def _markdown_table(
     headers: Sequence[object | None],
     rows: Sequence[Sequence[object | None]],
-    *,
-    aligns: Sequence[str] | None = None,
 ) -> list[str]:
-    separator = _separator_row(len(headers), aligns)
-    lines = [
-        f"| {' | '.join(markdown_table_cell(header) for header in headers)} |",
-        f"| {' | '.join(separator)} |",
+    normalized_rows = [
+        tuple(markdown_table_cell(header) for header in headers),
+        *[
+            tuple(markdown_table_cell(cell) for cell in _padded_cells(row, len(headers)))
+            for row in rows
+        ],
     ]
-    for row in rows:
-        cells = _padded_cells(row, len(headers))
-        lines.append(f"| {' | '.join(markdown_table_cell(cell) for cell in cells)} |")
+    widths = _column_widths(normalized_rows)
+    lines = [
+        _markdown_table_row(normalized_rows[0], widths),
+        _markdown_table_row(tuple("-" * width for width in widths), widths),
+    ]
+    for row in normalized_rows[1:]:
+        lines.append(_markdown_table_row(row, widths))
     return lines
 
 
-def _separator_row(
-    count: int,
-    aligns: Sequence[str] | None,
-) -> tuple[str, ...]:
-    separators: list[str] = []
-    for index in range(count):
-        if aligns is not None and index < len(aligns) and aligns[index]:
-            separators.append(aligns[index])
-        else:
-            separators.append("---")
-    return tuple(separators)
+def _column_widths(rows: Sequence[Sequence[str]]) -> tuple[int, ...]:
+    column_count = max((len(row) for row in rows), default=0)
+    return tuple(
+        max(3, *(len(row[index]) for row in rows if index < len(row)))
+        for index in range(column_count)
+    )
+
+
+def _markdown_table_row(row: Sequence[str], widths: Sequence[int]) -> str:
+    cells = tuple(
+        row[index] if index < len(row) else "—"
+        for index in range(len(widths))
+    )
+    padded_cells = (
+        cell.ljust(width) for cell, width in zip(cells, widths, strict=True)
+    )
+    return f"| {' | '.join(padded_cells)} |"
 
 
 def _table_columns(

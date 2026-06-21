@@ -140,6 +140,9 @@ async def test_application_exports_fake_extraction_result_markdown(
     assert export_result.artifact_path is not None
     artifact_relative_path = export_result.artifact_path
     assert "Deterministic fake extracted text." in export_result.markdown
+    assert "Extraction Metadata" not in export_result.markdown
+    assert "fake-model-v0" not in export_result.markdown
+    assert intake_result.job_id not in export_result.markdown
     assert artifact_relative_path == f"jobs/{intake_result.job_id}/exports/result.md"
     assert not Path(artifact_relative_path).is_absolute()
 

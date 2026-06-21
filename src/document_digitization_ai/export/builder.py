@@ -26,7 +26,7 @@ def build_extraction_result_export_document(
 ) -> ExportDocument:
     warning_rows = _build_warning_rows(result)
     return ExportDocument(
-        title="Document Extraction Result",
+        title="Результат анализа",
         sections=STABLE_EXPORT_SECTIONS,
         summary_items=_build_summary_items(
             result,
@@ -44,6 +44,10 @@ def build_extraction_result_export_document(
     )
 
 
+def count_extraction_result_warnings(result: ExtractionResult) -> int:
+    return len(_build_warning_rows(result))
+
+
 def _build_summary_items(
     result: ExtractionResult,
     *,
@@ -53,16 +57,18 @@ def _build_summary_items(
 ) -> tuple[ExportKeyValueItem, ...]:
     document = result.document
     return (
-        ExportKeyValueItem("Document type", document.detected_type.value),
-        ExportKeyValueItem("Language", document.language),
         ExportKeyValueItem(
-            "Validation outcome",
+            "Тип документа",
+            _document_type_label(document.detected_type.value),
+        ),
+        ExportKeyValueItem("Язык", _language_label(document.language)),
+        ExportKeyValueItem(
+            "Статус проверки",
             _validation_outcome(job=job, attempt=attempt),
         ),
-        ExportKeyValueItem("Field count", str(len(result.fields))),
-        ExportKeyValueItem("Table count", str(len(result.tables))),
-        ExportKeyValueItem("Warning count", str(warning_count)),
-        ExportKeyValueItem("Raw text length", str(len(result.raw_text.text))),
+        ExportKeyValueItem("Поля", str(len(result.fields))),
+        ExportKeyValueItem("Таблицы", str(len(result.tables))),
+        ExportKeyValueItem("Предупреждения", str(warning_count)),
     )
 
 
@@ -72,10 +78,10 @@ def _validation_outcome(
     attempt: ExtractionAttempt | None,
 ) -> str:
     if job is not None and job.validation_status:
-        return job.validation_status
+        return _validation_status_label(job.validation_status)
     if attempt is not None and attempt.validation_outcome:
-        return attempt.validation_outcome
-    return "unknown"
+        return _validation_status_label(attempt.validation_outcome)
+    return _validation_status_label("unknown")
 
 
 def _build_warning_rows(result: ExtractionResult) -> tuple[ExportWarningRow, ...]:
@@ -114,9 +120,9 @@ def _warning_rows(
 ) -> tuple[ExportWarningRow, ...]:
     return tuple(
         ExportWarningRow(
-            severity=warning.severity.value,
+            severity=_warning_severity_label(warning.severity.value),
             code=warning.code.value,
-            target=warning.target or default_target,
+            target=_warning_target_label(warning.target or default_target),
             message=warning.message,
         )
         for warning in warnings
@@ -156,12 +162,54 @@ def _build_block_rows(result: ExtractionResult) -> tuple[ExportTextBlockRow, ...
     return tuple(
         ExportTextBlockRow(
             order=block.order,
-            type=block.type.value,
+            type=_block_type_label(block.type.value),
             text=block.text,
             confidence=block.confidence,
         )
         for block in sorted(result.blocks, key=lambda block: block.order)
     )
+
+
+def _document_type_label(value: str | None) -> str:
+    return _label_or_fallback(value, _DOCUMENT_TYPE_LABELS)
+
+
+def _language_label(value: str | None) -> str:
+    return _label_or_fallback(value, _LANGUAGE_LABELS)
+
+
+def _validation_status_label(value: str | None) -> str:
+    return _label_or_fallback(value, _VALIDATION_STATUS_LABELS)
+
+
+def _warning_severity_label(value: str | None) -> str:
+    return _label_or_fallback(value, _WARNING_SEVERITY_LABELS)
+
+
+def _warning_target_label(value: str | None) -> str:
+    if value is None:
+        return "Результат"
+    text = value.strip()
+    if text.startswith("field:"):
+        return f"Поле: {text.removeprefix('field:')}"
+    if text.startswith("table:"):
+        return f"Таблица: {text.removeprefix('table:')}"
+    if text.startswith("block:"):
+        return f"Текстовый блок {text.removeprefix('block:')}"
+    return _label_or_fallback(text, _WARNING_TARGET_LABELS)
+
+
+def _block_type_label(value: str | None) -> str:
+    return _label_or_fallback(value, _BLOCK_TYPE_LABELS)
+
+
+def _label_or_fallback(
+    value: str | None,
+    labels: dict[str, str],
+) -> str:
+    if value is None or not value.strip():
+        return "Не указано"
+    return labels.get(value, value)
 
 
 def _build_diagnostics_items(result: ExtractionResult) -> tuple[ExportKeyValueItem, ...]:
@@ -281,6 +329,58 @@ def _looks_like_absolute_path(value: str) -> bool:
         return True
     return text.startswith(("/", "\\\\"))
 
+
+_DOCUMENT_TYPE_LABELS: dict[str, str] = {
+    "form": "Форма",
+    "free_handwritten_text": "Рукописный текст",
+    "label_or_plate": "Этикетка или табличка",
+    "mixed_document": "Смешанный документ",
+    "other": "Другой документ",
+    "plain_text": "Обычный текст",
+    "table": "Таблица",
+    "unknown": "Тип не определён",
+}
+
+_LANGUAGE_LABELS: dict[str, str] = {
+    "en": "Английский",
+    "ru": "Русский",
+}
+
+_VALIDATION_STATUS_LABELS: dict[str, str] = {
+    "VALIDATION_ERROR": "Ошибка проверки",
+    "VALIDATION_FAILED": "Проверка не пройдена",
+    "VALIDATION_PARTIAL": "Частичная проверка",
+    "VALIDATION_SUCCEEDED": "Проверка пройдена",
+    "error": "Ошибка проверки",
+    "failed": "Проверка не пройдена",
+    "partial": "Частичная проверка",
+    "succeeded": "Проверка пройдена",
+    "unknown": "Неизвестно",
+}
+
+_WARNING_SEVERITY_LABELS: dict[str, str] = {
+    "error": "Ошибка",
+    "info": "Информация",
+    "warning": "Предупреждение",
+}
+
+_WARNING_TARGET_LABELS: dict[str, str] = {
+    "fields": "Поля",
+    "image": "Изображение",
+    "image_diagnostics": "Качество изображения",
+    "raw_text": "Текст",
+    "result": "Результат",
+}
+
+_BLOCK_TYPE_LABELS: dict[str, str] = {
+    "field_group": "Группа полей",
+    "heading": "Заголовок",
+    "list": "Список",
+    "paragraph": "Абзац",
+    "signature": "Подпись",
+    "table": "Таблица",
+    "unknown": "Неизвестно",
+}
 
 _SENSITIVE_TOKENS: tuple[str, ...] = (
     ".env",

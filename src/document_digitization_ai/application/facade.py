@@ -30,6 +30,7 @@ from document_digitization_ai.db import (
 )
 from document_digitization_ai.export import (
     ExtractionResultReconstructionError,
+    count_extraction_result_warnings,
     reconstruct_extraction_result_from_payload,
 )
 from document_digitization_ai.services import DocumentExtractionWorkflowError
@@ -506,7 +507,7 @@ def _summary_from_snapshots(
         status=job.status.value,
         result_available=job.extraction_result_payload is not None,
         document_type=_document_type(job.extraction_result_payload),
-        warning_count=_sequence_count(job.extraction_result_payload, "warnings"),
+        warning_count=_warning_count(job.extraction_result_payload),
         table_count=_sequence_count(job.extraction_result_payload, "tables"),
         field_count=_sequence_count(job.extraction_result_payload, "fields"),
         created_at=job.created_at,
@@ -786,6 +787,16 @@ def _sequence_count(payload: Mapping[str, object] | None, key: str) -> int | Non
     if isinstance(value, list | tuple):
         return len(value)
     return None
+
+
+def _warning_count(payload: Mapping[str, object] | None) -> int | None:
+    if payload is None:
+        return None
+    try:
+        result = reconstruct_extraction_result_from_payload(payload)
+    except ExtractionResultReconstructionError:
+        return _sequence_count(payload, "warnings")
+    return count_extraction_result_warnings(result)
 
 
 def _is_supported_source_file(path: Path) -> bool:

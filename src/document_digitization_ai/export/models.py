@@ -83,34 +83,19 @@ class ExportDocument:
 STABLE_EXPORT_SECTIONS: tuple[ExportSection, ...] = (
     ExportSection(
         id="summary",
-        title="1. Summary",
+        title="Сводка",
         kind=ExportSectionKind.SUMMARY,
     ),
     ExportSection(
         id="warnings-and-uncertainty",
-        title="2. Warnings and Uncertainty",
+        title="Предупреждения",
         kind=ExportSectionKind.WARNINGS,
     ),
-    ExportSection(id="fields", title="3. Fields", kind=ExportSectionKind.FIELDS),
-    ExportSection(id="tables", title="4. Tables", kind=ExportSectionKind.TABLES),
+    ExportSection(id="fields", title="Поля", kind=ExportSectionKind.FIELDS),
+    ExportSection(id="tables", title="Таблицы", kind=ExportSectionKind.TABLES),
     ExportSection(
         id="raw-text",
-        title="5. Raw Text",
+        title="Текст",
         kind=ExportSectionKind.RAW_TEXT,
-    ),
-    ExportSection(
-        id="text-blocks",
-        title="6. Text Blocks",
-        kind=ExportSectionKind.TEXT_BLOCKS,
-    ),
-    ExportSection(
-        id="image-diagnostics",
-        title="7. Image Diagnostics",
-        kind=ExportSectionKind.IMAGE_DIAGNOSTICS,
-    ),
-    ExportSection(
-        id="extraction-metadata",
-        title="8. Extraction Metadata",
-        kind=ExportSectionKind.EXTRACTION_METADATA,
     ),
 )

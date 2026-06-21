@@ -23,41 +23,51 @@ from document_digitization_ai.contracts import (
 )
 from document_digitization_ai.export import (
     ExportDocument,
+    ExportSection,
     ExportSectionKind,
     build_extraction_result_export_document,
+    count_extraction_result_warnings,
     markdown_table_cell,
     render_extraction_result_markdown,
 )
 from document_digitization_ai.export.models import STABLE_EXPORT_SECTIONS
 
 
-def test_renderer_outputs_full_result_in_stable_section_order() -> None:
+def test_renderer_outputs_user_facing_result_without_internal_metadata() -> None:
     export_document = build_extraction_result_export_document(_full_result())
 
     markdown = render_extraction_result_markdown(export_document)
 
     section_headers = [
-        "## 1. Summary",
-        "## 2. Warnings and Uncertainty",
-        "## 3. Fields",
-        "## 4. Tables",
-        "## 5. Raw Text",
-        "## 6. Text Blocks",
-        "## 7. Image Diagnostics",
-        "## 8. Extraction Metadata",
+        "## Сводка",
+        "## Предупреждения",
+        "## Поля",
+        "## Таблицы",
+        "## Текст",
     ]
     positions = [markdown.index(header) for header in section_headers]
     assert positions == sorted(positions)
-    assert markdown.startswith("# Document Extraction Result\n")
+    assert markdown.startswith("# Результат анализа\n")
     assert markdown.endswith("\n")
-    assert "| Severity | Code | Target | Message |" in markdown
-    assert "| Label | Value | Confidence | Notes |" in markdown
-    assert "### Table 1 — Line items" in markdown
-    assert "### Table 2 — Totals" in markdown
+    assert "| Показатель      | Значение   |" in markdown
+    assert "| Тип документа   | Форма      |" in markdown
+    assert "| Язык            | Русский    |" in markdown
+    assert "| Уровень        | Источник    | Сообщение                      |" in markdown
+    assert "| Предупреждение | Поля        | Некоторые значения не уверены. |" in markdown
+    assert "| Поле          | Значение  | Уверенность | Примечания |" in markdown
+    assert "### Таблица 1 — Line items" in markdown
+    assert "### Таблица 2 — Totals" in markdown
     assert "Line one\nLine two" in markdown
-    assert "| 1 | heading | Receipt heading | 0.95 |" in markdown
-    assert "| Width | 120 |" in markdown
-    assert "| Provider | fake |" in markdown
+    assert "## Extraction Metadata" not in markdown
+    assert "Provider" not in markdown
+    assert "openai/test-vision" not in markdown
+    assert "Job ID" not in markdown
+    assert "Attempt ID" not in markdown
+    assert "Image Diagnostics" not in markdown
+    assert "Width" not in markdown
+    assert "Text Blocks" not in markdown
+    assert export_document.metadata_items
+    assert export_document.diagnostics_items
 
 
 def test_empty_sections_render_controlled_empty_states() -> None:
@@ -65,23 +75,45 @@ def test_empty_sections_render_controlled_empty_states() -> None:
         build_extraction_result_export_document(_empty_result())
     )
 
-    assert "No warnings were reported." in markdown
-    assert "No standalone fields were extracted." in markdown
-    assert "No tables were extracted." in markdown
-    assert "No raw text was extracted." in markdown
-    assert "No text blocks were extracted." in markdown
+    assert "Предупреждений нет." in markdown
+    assert "Поля не извлечены." in markdown
+    assert "Таблицы не извлечены." in markdown
+    assert "Текст не извлечён." in markdown
 
 
-def test_renderer_handles_empty_diagnostics_and_metadata_sections() -> None:
+def test_default_sections_do_not_render_diagnostics_or_metadata_empty_states() -> None:
     markdown = render_extraction_result_markdown(
         ExportDocument(
-            title="Document Extraction Result",
+            title="Результат анализа",
             sections=STABLE_EXPORT_SECTIONS,
         )
     )
 
-    assert "No image diagnostics are available." in markdown
-    assert "No extraction metadata is available." in markdown
+    assert "Сведения о качестве изображения недоступны." not in markdown
+    assert "Метаданные извлечения недоступны." not in markdown
+
+
+def test_internal_diagnostics_and_metadata_sections_still_render_when_requested() -> None:
+    markdown = render_extraction_result_markdown(
+        ExportDocument(
+            title="Внутренний результат",
+            sections=(
+                ExportSection(
+                    id="image-diagnostics",
+                    title="Качество изображения",
+                    kind=ExportSectionKind.IMAGE_DIAGNOSTICS,
+                ),
+                ExportSection(
+                    id="extraction-metadata",
+                    title="Метаданные извлечения",
+                    kind=ExportSectionKind.EXTRACTION_METADATA,
+                ),
+            ),
+        )
+    )
+
+    assert "Сведения о качестве изображения недоступны." in markdown
+    assert "Метаданные извлечения недоступны." in markdown
 
 
 def test_markdown_table_cells_are_escaped_and_tables_are_padded() -> None:
@@ -93,9 +125,11 @@ def test_markdown_table_cells_are_escaped_and_tables_are_padded() -> None:
     assert markdown_table_cell(None) == "—"
     assert r"Account \| ID" in markdown
     assert r"A\|B<br>C" in markdown
-    assert "| Short row | — | — |" in markdown
-    assert "| Long row | 2 | Preserved extra value |" in markdown
-    assert "| Product | Count | Column 3 |" in markdown
+    assert "| Product         | Count | Column 3              |" in markdown
+    assert "| --------------- | ----- | --------------------- |" in markdown
+    assert "| Short row       | —     | —                     |" in markdown
+    assert "| Long row        | 2     | Preserved extra value |" in markdown
+    assert "---:" not in markdown
 
 
 def test_builder_filters_debug_and_sensitive_metadata() -> None:
@@ -113,6 +147,8 @@ def test_builder_filters_debug_and_sensitive_metadata() -> None:
     assert "provider_request" not in markdown
     assert "full prompt" not in markdown
     assert "sha-secret" not in markdown
+    assert "fake-model-v0" not in markdown
+    assert "openai/test-vision" not in markdown
 
 
 def test_export_document_has_stable_sections_and_structured_rows() -> None:
@@ -125,9 +161,6 @@ def test_export_document_has_stable_sections_and_structured_rows() -> None:
         "fields",
         "tables",
         "raw-text",
-        "text-blocks",
-        "image-diagnostics",
-        "extraction-metadata",
     ]
     assert [section.kind for section in export_document.sections] == [
         ExportSectionKind.SUMMARY,
@@ -135,15 +168,20 @@ def test_export_document_has_stable_sections_and_structured_rows() -> None:
         ExportSectionKind.FIELDS,
         ExportSectionKind.TABLES,
         ExportSectionKind.RAW_TEXT,
-        ExportSectionKind.TEXT_BLOCKS,
-        ExportSectionKind.IMAGE_DIAGNOSTICS,
-        ExportSectionKind.EXTRACTION_METADATA,
     ]
     assert export_document.warning_rows[0].code == "partial_extraction"
+    assert export_document.warning_rows[0].severity == "Предупреждение"
+    assert export_document.warning_rows[0].target == "Поля"
     assert export_document.field_rows[0].label == "Account | ID"
     assert export_document.table_sections[0].rows[2].cells[-1] == (
         "Preserved extra value"
     )
+    assert any(item.key == "Provider" for item in export_document.metadata_items)
+    assert any(item.key == "Model" for item in export_document.metadata_items)
+
+
+def test_warning_count_uses_all_exported_warning_sources() -> None:
+    assert count_extraction_result_warnings(_full_result()) == 2
 
 
 def _full_result() -> ExtractionResult:

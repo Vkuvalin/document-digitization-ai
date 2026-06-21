@@ -17,7 +17,19 @@ from document_digitization_ai.application import (
 )
 from document_digitization_ai.application import dtos as facade_dtos
 from document_digitization_ai.application import facade as facade_module
-from document_digitization_ai.contracts import DocumentModeHint, JobStatus
+from document_digitization_ai.contracts import (
+    DetectedDocumentType,
+    DocumentInfo,
+    DocumentModeHint,
+    ExtractionResult,
+    ImageDiagnostics,
+    ImageFileMetadata,
+    ImageShape,
+    JobStatus,
+    RawText,
+    Warning,
+    WarningCode,
+)
 from document_digitization_ai.core import AppSettings
 from document_digitization_ai.db import (
     DocumentJob,
@@ -350,6 +362,62 @@ def test_facade_dtos_are_serializable_and_http_independent() -> None:
 
     assert json.loads(json.dumps(serialized))["error"]["error_type"] == "invalid_input"
     assert "DocumentJob" not in json.dumps(serialized)
+
+
+def test_facade_summary_warning_count_uses_nested_result_warnings() -> None:
+    result = ExtractionResult(
+        document=DocumentInfo(
+            user_mode_hint=DocumentModeHint.FORM,
+            detected_type=DetectedDocumentType.FORM,
+        ),
+        image_diagnostics=ImageDiagnostics(
+            file=ImageFileMetadata(
+                mime_type="image/jpeg",
+                file_size_bytes=123,
+                file_extension=".jpg",
+            ),
+            image=ImageShape.from_dimensions(width=120, height=120),
+            warnings=(
+                Warning(
+                    code=WarningCode.LOW_CONTRAST,
+                    message="Контраст ниже ожидаемого.",
+                ),
+            ),
+        ),
+        raw_text=RawText(
+            text="Text",
+            warnings=(
+                Warning(
+                    code=WarningCode.UNREADABLE_TEXT,
+                    message="Фрагмент текста не читается.",
+                ),
+            ),
+        ),
+        warnings=(
+            Warning(
+                code=WarningCode.PARTIAL_EXTRACTION,
+                message="Часть данных не извлечена.",
+            ),
+        ),
+    )
+    job = facade_module._JobSnapshot(
+        id="job-with-warnings",
+        status=JobStatus.RESULT_READY,
+        user_mode_hint=DocumentModeHint.FORM,
+        source_image_path=None,
+        source_image_mime_type=None,
+        source_image_size_bytes=None,
+        extraction_result_payload=result.to_dict(),
+        validation_status=None,
+        completed_attempt_id=None,
+        error_message=None,
+        created_at=None,
+        updated_at=None,
+    )
+
+    summary = facade_module._summary_from_snapshots(job, latest_attempt=None)
+
+    assert summary.warning_count == 3
 
 
 class ObservingApplication(LocalDocumentApplication):
