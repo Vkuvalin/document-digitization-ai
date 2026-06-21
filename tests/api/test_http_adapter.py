@@ -55,6 +55,41 @@ def test_create_app_registers_routes_and_uses_injected_facade(tmp_path: Path) ->
     assert facade.calls == []
 
 
+def test_web_ui_static_serving_under_app_keeps_api_routes_clean(
+    tmp_path: Path,
+) -> None:
+    facade = FakeDocumentFacade()
+    client = _client(tmp_path, facade)
+
+    app_index = client.get("/app")
+    app_slash = client.get("/app/")
+    stylesheet = client.get("/app/styles.css")
+    app_script = client.get("/app/js/app.js")
+    api_client_script = client.get("/app/js/apiClient.js")
+    result_dialog_script = client.get("/app/js/uiResultDialog.js")
+    root = client.get("/")
+    health = client.get("/health")
+
+    assert app_index.status_code == 200
+    assert '<html lang="ru">' in app_index.text
+    assert app_slash.status_code == 200
+    assert '<script src="./js/apiClient.js"></script>' in app_slash.text
+    assert stylesheet.status_code == 200
+    assert "text/css" in stylesheet.headers["content-type"]
+    assert "--color-primary" in stylesheet.text
+    assert app_script.status_code == 200
+    assert "Stage19AWorkspace.init({ apiClient })" in app_script.text
+    assert api_client_script.status_code == 200
+    assert "Stage19BApiClient" in api_client_script.text
+    assert "localhost" not in api_client_script.text
+    assert result_dialog_script.status_code == 200
+    assert 'VALIDATION_PARTIAL: "Частичная проверка"' in result_dialog_script.text
+    assert 'en: "Английский"' in result_dialog_script.text
+    assert root.status_code == 404
+    assert health.status_code == 200
+    assert facade.calls == []
+
+
 def test_upload_endpoint_passes_file_to_facade(tmp_path: Path) -> None:
     facade = FakeDocumentFacade()
     client = _client(tmp_path, facade)

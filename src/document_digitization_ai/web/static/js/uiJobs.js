@@ -1,10 +1,27 @@
 (function () {
+  function normalizeStatus(status) {
+    return String(status || "").trim().toUpperCase();
+  }
+
   function getStatusClass(status) {
-    if (status === "complete") {
+    const normalized = normalizeStatus(status);
+
+    if (
+      normalized === "COMPLETE" ||
+      normalized === "RESULT_READY" ||
+      normalized === "VALIDATION_SUCCEEDED" ||
+      normalized === "SUCCEEDED"
+    ) {
       return "status-pill-success";
     }
 
-    if (status === "failed") {
+    if (
+      normalized === "FAILED" ||
+      normalized === "CANCELLED" ||
+      normalized === "ERROR" ||
+      normalized === "VALIDATION_FAILED" ||
+      normalized === "VALIDATION_ERROR"
+    ) {
       return "status-pill-danger";
     }
 
@@ -67,15 +84,25 @@
       header.className = "job-card-header";
 
       const titleBlock = document.createElement("div");
-      titleBlock.appendChild(createTextElement("strong", "", job.fileName));
-      titleBlock.appendChild(createTextElement("small", "", `${job.documentType} · ${job.createdAt}`));
+      titleBlock.appendChild(createTextElement("strong", "", job.fileName || "Документ"));
+      titleBlock.appendChild(
+        createTextElement(
+          "small",
+          "",
+          `${job.documentType || "Тип не определён"} · ${job.createdAt || "Дата неизвестна"}`,
+        ),
+      );
 
-      const status = createTextElement("span", `status-pill ${getStatusClass(job.status)}`, job.statusLabel);
+      const status = createTextElement(
+        "span",
+        `status-pill ${getStatusClass(job.status)}`,
+        job.statusLabel || "Статус неизвестен",
+      );
       header.append(titleBlock, status);
 
       const meta = document.createElement("div");
       meta.className = "job-meta-row";
-      meta.appendChild(createTextElement("span", "", formatWarningCount(job.warningCount)));
+      meta.appendChild(createTextElement("span", "", formatWarningCount(job.warningCount || 0)));
 
       button.append(header, meta);
       button.addEventListener("click", () => onSelect(job));

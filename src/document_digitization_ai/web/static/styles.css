@@ -177,6 +177,32 @@ select:focus-visible,
   opacity: 0.62;
 }
 
+.button-spinner,
+.loading-spinner {
+  display: inline-block;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: spin 760ms linear infinite;
+}
+
+.button-spinner {
+  width: 16px;
+  height: 16px;
+}
+
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  color: var(--color-primary);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .button-primary {
   background: var(--color-primary);
   color: #ffffff;
@@ -506,6 +532,7 @@ select:focus-visible,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
   min-height: 48px;
   padding: 12px 14px;
   border: 1px solid var(--color-line);
@@ -516,7 +543,15 @@ select:focus-visible,
   font-weight: 700;
 }
 
+.setting-row span,
+.switch-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .setting-row select {
+  min-width: 0;
+  width: auto;
   max-width: 150px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-control);
@@ -525,7 +560,16 @@ select:focus-visible,
   padding: 7px 10px;
 }
 
+.setting-row.is-disabled {
+  flex-wrap: wrap;
+}
+
+.setting-row.is-disabled select {
+  max-width: 100%;
+}
+
 .switch-row input {
+  flex: 0 0 auto;
   width: 18px;
   height: 18px;
   accent-color: var(--color-primary);
@@ -772,6 +816,7 @@ select:focus-visible,
 .empty-state,
 .error-state,
 .loading-state {
+  gap: 12px;
   display: grid;
   min-height: 180px;
   place-items: center;
@@ -786,6 +831,16 @@ select:focus-visible,
 .empty-state strong,
 .error-state strong {
   color: var(--color-text);
+}
+
+.loading-state p,
+.error-state p {
+  max-width: 360px;
+  margin: 6px auto 0;
+}
+
+.processing-state {
+  align-content: center;
 }
 
 .workspace-empty strong {
@@ -861,6 +916,7 @@ select:focus-visible,
 }
 
 .summary-card {
+  min-width: 0;
   padding: 16px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
@@ -876,7 +932,10 @@ select:focus-visible,
 }
 
 .summary-card strong {
+  display: block;
   font-size: 20px;
+  line-height: 1.22;
+  overflow-wrap: anywhere;
 }
 
 .warning-list {

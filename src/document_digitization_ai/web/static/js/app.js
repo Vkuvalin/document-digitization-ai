@@ -46,8 +46,10 @@
   }
 
   function initApp() {
-    const workspace = window.Stage19AWorkspace.init();
+    const apiClient = window.Stage19BApiClient;
+    const workspace = window.Stage19AWorkspace.init({ apiClient });
     window.Stage19AUpload.init({
+      apiClient,
       onAnalyze: workspace.openWithJob,
     });
     initInfoModal();

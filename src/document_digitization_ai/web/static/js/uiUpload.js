@@ -16,27 +16,18 @@
     return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
   }
 
-  function createJobForFile(file, sampleJob, previewUrl) {
-    return {
-      ...sampleJob,
-      id: "job-demo-current-upload",
-      fileName: file.name,
-      createdAt: "Текущая сессия",
-      status: "needs_review",
-      statusLabel: "Требует проверки",
-      previewKind: file.type.startsWith("image/") ? "image" : "placeholder",
-      previewUrl: file.type.startsWith("image/") ? previewUrl : "",
-      warningCount: sampleJob.warningCount,
-      metadata: {
-        ...sampleJob.metadata,
-        sourceFile: file.name,
-        fileSize: formatFileSize(file.size),
-      },
-    };
+  function setButtonBusy(button, text) {
+    button.disabled = true;
+    button.innerHTML = `<span class="button-spinner" aria-hidden="true"></span>${text}`;
+  }
+
+  function setButtonReady(button) {
+    button.disabled = false;
+    button.textContent = "Анализировать";
   }
 
   function initUpload(options) {
-    const data = window.Stage19ASampleData;
+    const apiClient = options.apiClient;
     const dropzone = document.getElementById("dropzone");
     const fileInput = document.getElementById("fileInput");
     const chooseFileButton = document.getElementById("chooseFileButton");
@@ -50,6 +41,7 @@
     const uploadNote = document.getElementById("uploadNote");
     let selectedFile = null;
     let previewUrl = null;
+    let isSubmitting = false;
 
     function resetPreview() {
       if (previewUrl) {
@@ -61,6 +53,10 @@
     }
 
     function clearSelectedFile() {
+      if (isSubmitting) {
+        return;
+      }
+
       selectedFile = null;
       fileInput.value = "";
       selectedFilePanel.classList.add("is-hidden");
@@ -72,6 +68,10 @@
     }
 
     function setSelectedFile(file) {
+      if (isSubmitting) {
+        return;
+      }
+
       if (!file) {
         clearSelectedFile();
         return;
@@ -83,6 +83,7 @@
       selectedFilePanel.classList.remove("is-hidden");
       settingsPanel.classList.remove("is-hidden");
       analyzeButton.disabled = false;
+      analyzeButton.textContent = "Анализировать";
       uploadNote.textContent = "Файл выбран. Можно запускать анализ.";
 
       resetPreview();
@@ -97,7 +98,9 @@
     }
 
     function openFileDialog() {
-      fileInput.click();
+      if (!isSubmitting) {
+        fileInput.click();
+      }
     }
 
     function handleDrop(event) {
@@ -107,21 +110,65 @@
       setSelectedFile(file);
     }
 
-    function runAnalyzeSimulation() {
-      if (!selectedFile || analyzeButton.disabled) {
+    function createUploadContext(file) {
+      const workspacePreviewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : "";
+
+      return {
+        fileName: file.name,
+        fileSize: formatFileSize(file.size),
+        mimeType: file.type || "application/octet-stream",
+        previewKind: workspacePreviewUrl ? "image" : "placeholder",
+        previewUrl: workspacePreviewUrl,
+        ownsPreviewUrl: Boolean(workspacePreviewUrl),
+      };
+    }
+
+    async function runAnalyze() {
+      if (!selectedFile || isSubmitting) {
         return;
       }
 
-      analyzeButton.disabled = true;
-      analyzeButton.textContent = "Анализируем...";
-      uploadNote.textContent = "Готовим демо-результат.";
+      isSubmitting = true;
+      setButtonBusy(analyzeButton, "Загружаем");
+      uploadNote.textContent = "Загружаем файл и запускаем анализ.";
 
-      window.setTimeout(() => {
-        analyzeButton.disabled = false;
-        analyzeButton.textContent = "Анализировать";
-        uploadNote.textContent = "Демо-результат открыт в рабочей области.";
-        options.onAnalyze(createJobForFile(selectedFile, data.currentJob, previewUrl));
-      }, 850);
+      const uploadContext = createUploadContext(selectedFile);
+
+      try {
+        const submitResponse = await apiClient.uploadDocument(selectedFile);
+
+        if (!submitResponse.accepted || !submitResponse.job_id) {
+          const apiError = submitResponse.error || {};
+          throw new apiClient.ApiClientError(
+            apiClient.messageForError(apiError.error_type, apiError.error_message),
+            {
+              errorType: apiError.error_type || "validation_error",
+              payload: submitResponse,
+            },
+          );
+        }
+
+        uploadNote.textContent = "Файл принят. Ожидаем результат в рабочей области.";
+        options.onAnalyze({
+          submit: submitResponse,
+          upload: uploadContext,
+        });
+      } catch (error) {
+        if (uploadContext.previewUrl) {
+          URL.revokeObjectURL(uploadContext.previewUrl);
+        }
+
+        uploadNote.textContent =
+          error && error.message ? error.message : "Не удалось отправить файл на анализ.";
+      } finally {
+        isSubmitting = false;
+        if (selectedFile) {
+          setButtonReady(analyzeButton);
+        } else {
+          analyzeButton.disabled = true;
+          analyzeButton.textContent = "Анализировать";
+        }
+      }
     }
 
     chooseFileButton.addEventListener("click", (event) => {
@@ -137,12 +184,19 @@
     });
     fileInput.addEventListener("change", () => setSelectedFile(fileInput.files[0]));
     clearFileButton.addEventListener("click", clearSelectedFile);
-    analyzeButton.addEventListener("click", runAnalyzeSimulation);
+    analyzeButton.addEventListener("click", () => {
+      runAnalyze().catch(() => {
+        uploadNote.textContent = "Не удалось отправить файл на анализ.";
+        setButtonReady(analyzeButton);
+      });
+    });
 
     ["dragenter", "dragover"].forEach((eventName) => {
       dropzone.addEventListener(eventName, (event) => {
         event.preventDefault();
-        dropzone.classList.add("is-drag-over");
+        if (!isSubmitting) {
+          dropzone.classList.add("is-drag-over");
+        }
       });
     });
 
