@@ -959,6 +959,21 @@ select:focus-visible,
   overflow-x: auto;
 }
 
+.table-section {
+  display: grid;
+  gap: 10px;
+}
+
+.table-section + .table-section {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-line);
+}
+
+.table-section h3 {
+  margin: 0;
+}
+
 table {
   width: 100%;
   min-width: 620px;

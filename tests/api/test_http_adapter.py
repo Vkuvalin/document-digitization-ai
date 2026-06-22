@@ -85,6 +85,10 @@ def test_web_ui_static_serving_under_app_keeps_api_routes_clean(
     assert result_dialog_script.status_code == 200
     assert 'VALIDATION_PARTIAL: "Частичная проверка"' in result_dialog_script.text
     assert 'en: "Английский"' in result_dialog_script.text
+    assert "Поля вне таблиц" in app_slash.text
+    assert "Поля вне таблиц" in result_dialog_script.text
+    assert "table-section" in result_dialog_script.text
+    assert ".table-section + .table-section" in stylesheet.text
     assert root.status_code == 404
     assert health.status_code == 200
     assert facade.calls == []

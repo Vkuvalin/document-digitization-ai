@@ -395,7 +395,7 @@
 
   function renderFields(fields) {
     if (!fields.length) {
-      return "<div class=\"empty-state\"><strong>Поля не найдены</strong></div>";
+      return "<div class=\"empty-state\"><strong>Поля вне таблиц не найдены</strong></div>";
     }
 
     const rows = fields
@@ -441,13 +441,15 @@
           .join("");
 
         return `
-          <h3>${escapeHtml(table.name)}</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr>${headers}</tr></thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>
+          <section class="table-section">
+            <h3>${escapeHtml(table.name)}</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr>${headers}</tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          </section>
         `;
       })
       .join("");
@@ -764,7 +766,7 @@
           <div class="summary-card"><span>Тип документа</span><strong>${escapeHtml(activeJob.documentType)}</strong></div>
           <div class="summary-card"><span>Язык</span><strong>${escapeHtml(metadata.language)}</strong></div>
           <div class="summary-card"><span>Проверка</span><strong>${escapeHtml(metadata.validationStatus)}</strong></div>
-          <div class="summary-card"><span>Поля</span><strong>${escapeHtml(metadata.fieldCount)}</strong></div>
+          <div class="summary-card"><span>Поля вне таблиц</span><strong>${escapeHtml(metadata.fieldCount)}</strong></div>
           <div class="summary-card"><span>Таблицы</span><strong>${escapeHtml(metadata.tableCount)}</strong></div>
           <div class="summary-card"><span>Предупреждения</span><strong>${escapeHtml(activeJob.warningCount)}</strong></div>
         </div>
