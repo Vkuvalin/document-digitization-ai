@@ -129,11 +129,20 @@ def _build_full_schema_payload() -> dict[str, object]:
                 "required": ["text", "confidence", "warnings"],
             },
             "fields": {
-                "description": "Visible label/value pairs with source, confidence, and warnings.",
+                "description": (
+                    "Document-level standalone label/value facts with source, "
+                    "confidence, and warnings. Do not duplicate every repeated "
+                    "table row as a field."
+                ),
                 "items": ["label", "value", "confidence", "source", "warnings"],
             },
             "tables": {
-                "description": "Visible tabular structures with columns, rows, confidence, warnings.",
+                "description": (
+                    "Visible tabular structures with columns, rows, confidence, "
+                    "and warnings. Preserve repeated rows, lab/test tables, "
+                    "line items, schedules, and label/value sections that are "
+                    "visually tabular."
+                ),
                 "items": ["title", "columns", "rows", "confidence", "warnings"],
             },
             "blocks": {

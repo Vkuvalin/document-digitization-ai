@@ -159,7 +159,27 @@ def _build_output_requirements() -> tuple[str, ...]:
     return (
         f"Target internal result schema: {EXTRACTION_RESULT_SCHEMA_VERSION}.",
         f"Expected top-level sections: {section_names}.",
-        "Represent forms as fields, visible grids as tables, and ordered prose as blocks.",
+        (
+            "Top-level fields are document-level standalone facts: names, dates, "
+            "document numbers, totals, suppliers/customers, and explicitly labeled "
+            "key-value facts that are not primarily part of a repeated table."
+        ),
+        (
+            "Tables are visible tabular structures: repeated rows, multi-column "
+            "lab/test tables, line items, schedules, itemized results, and content "
+            "that visually behaves like rows and columns."
+        ),
+        (
+            "For two-column or label/value table sections, preserve the source as "
+            "a table when it is visually tabular. Add top-level fields only for "
+            "important document-level facts, not for every table row."
+        ),
+        (
+            "Avoid indiscriminate duplication: keep repeated measurements and "
+            "results primarily in tables. If classification is uncertain, keep "
+            "the value in the table and add warnings rather than inventing fields."
+        ),
+        "Represent ordered prose as blocks.",
         "Include warnings and metadata rather than silently dropping uncertain content.",
     )
 

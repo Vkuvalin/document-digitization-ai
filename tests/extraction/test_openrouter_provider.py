@@ -260,6 +260,34 @@ def test_openrouter_response_format_uses_explicit_nested_section_schemas(
     assert {"code", "message", "severity", "target"} <= set(warning_properties)
 
 
+def test_openrouter_full_response_format_describes_field_table_classification(
+    tmp_path: Path,
+) -> None:
+    request = _provider_request(
+        tmp_path / "full-classification.jpg",
+        provider_schema_mode=ProviderSchemaMode.FULL,
+    )
+    assert request.schema_package is not None
+
+    schema = _provider_response_schema(request.schema_package.to_dict())
+    properties = _properties(schema)
+    fields = cast(Mapping[str, object], properties["fields"])
+    tables = cast(Mapping[str, object], properties["tables"])
+    field_item = _array_items(fields)
+    table_item = _array_items(tables)
+    fields_description = cast(str, fields["description"])
+    tables_description = cast(str, tables["description"])
+    field_item_description = cast(str, field_item["description"])
+    table_item_description = cast(str, table_item["description"])
+
+    assert "Document-level standalone label/value facts" in fields_description
+    assert "Do not duplicate every repeated table row" in fields_description
+    assert "lab/test tables" in tables_description
+    assert "visually tabular label/value sections" in tables_description
+    assert "not every table row should become a field" in field_item_description
+    assert "preserve repeated and visually tabular values" in table_item_description
+
+
 def test_openrouter_response_format_has_no_shallow_known_object_sections(
     tmp_path: Path,
 ) -> None:

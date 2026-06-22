@@ -45,6 +45,22 @@ def test_prompt_includes_output_requirements_aligned_with_result_v0(
         assert section.value in output_text
 
 
+def test_prompt_includes_fields_tables_classification_policy(
+    tmp_path: Path,
+) -> None:
+    package = build_extraction_prompt_package(
+        _provider_context(tmp_path, DocumentModeHint.FORM)
+    )
+    output_text = "\n".join(package.output_requirements)
+
+    assert "Top-level fields are document-level standalone facts" in output_text
+    assert "Tables are visible tabular structures" in output_text
+    assert "label/value table sections" in output_text
+    assert "not for every table row" in output_text
+    assert "If classification is uncertain, keep the value in the table" in output_text
+    assert "inventing fields" in output_text
+
+
 @pytest.mark.parametrize(
     ("mode_hint", "expected_fragment"),
     [

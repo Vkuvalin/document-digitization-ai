@@ -657,11 +657,18 @@ def _extraction_result_section_schemas() -> dict[str, object]:
         "raw_text": _raw_text_schema(),
         "fields": _array_schema(
             _field_schema(),
-            description="Visible label/value pairs extracted from the document.",
+            description=(
+                "Document-level standalone label/value facts. Do not duplicate "
+                "every repeated table row as a field."
+            ),
         ),
         "tables": _array_schema(
             _table_schema(),
-            description="Visible tabular structures extracted from the document.",
+            description=(
+                "Visible tabular structures, including repeated rows, lab/test "
+                "tables, line items, schedules, and visually tabular label/value "
+                "sections."
+            ),
         ),
         "blocks": _array_schema(
             _block_schema(),
@@ -762,7 +769,10 @@ def _field_schema() -> dict[str, object]:
             "warnings": _array_schema(_warning_schema()),
         },
         title="ExtractedField",
-        description="Visible document field with label and value.",
+        description=(
+            "Document-level standalone field with label and value; not every "
+            "table row should become a field."
+        ),
     )
 
 
@@ -776,7 +786,10 @@ def _table_schema() -> dict[str, object]:
             "warnings": _array_schema(_warning_schema()),
         },
         title="ExtractedTable",
-        description="Visible table with columns and rows.",
+        description=(
+            "Visible source table with columns and rows; preserve repeated and "
+            "visually tabular values here."
+        ),
     )
 
 

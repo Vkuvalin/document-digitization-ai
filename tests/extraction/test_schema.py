@@ -106,6 +106,24 @@ def test_full_schema_package_includes_explicit_property_descriptions(
     assert "properties" in package.schema_payload
 
 
+def test_schema_package_describes_field_table_classification_policy(
+    tmp_path: Path,
+) -> None:
+    package = build_extraction_schema_package(
+        _provider_context(tmp_path, ProviderSchemaMode.FULL)
+    )
+    properties = cast(dict[str, object], package.schema_payload["properties"])
+    fields = cast(dict[str, object], properties["fields"])
+    tables = cast(dict[str, object], properties["tables"])
+    fields_description = cast(str, fields["description"])
+    tables_description = cast(str, tables["description"])
+
+    assert "Document-level standalone label/value facts" in fields_description
+    assert "Do not duplicate every repeated table row" in fields_description
+    assert "Visible tabular structures" in tables_description
+    assert "label/value sections that are visually tabular" in tables_description
+
+
 def test_provider_request_can_carry_prompt_and_schema_packages(
     tmp_path: Path,
 ) -> None:
