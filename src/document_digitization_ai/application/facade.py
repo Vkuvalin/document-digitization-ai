@@ -19,6 +19,7 @@ from document_digitization_ai.application.dtos import (
     MarkdownExportView,
     SubmitDocumentResult,
 )
+from document_digitization_ai.application.result_review import build_result_review_payload
 from document_digitization_ai.application.runtime import LocalDocumentApplication
 from document_digitization_ai.contracts import DocumentModeHint, JobStatus
 from document_digitization_ai.db import (
@@ -333,10 +334,12 @@ class DocumentProcessingFacade:
                 ),
             )
 
+        result_payload = result.to_dict()
+        result_payload["review"] = build_result_review_payload(result)
         return ExtractionResultView(
             job_id=job_id,
             result_available=True,
-            result=result.to_dict(),
+            result=result_payload,
         )
 
     async def get_result_markdown(

@@ -21,12 +21,14 @@ from document_digitization_ai.contracts import (
     DetectedDocumentType,
     DocumentInfo,
     DocumentModeHint,
+    ExtractedTable,
     ExtractionResult,
     ImageDiagnostics,
     ImageFileMetadata,
     ImageShape,
     JobStatus,
     RawText,
+    TableRow,
     Warning,
     WarningCode,
 )
@@ -274,6 +276,71 @@ async def test_facade_errors_and_malformed_payloads_are_safe(tmp_path: Path) -> 
         assert unknown_markdown.error.error_type == "job_not_found"
         assert malformed_result.error is not None
         assert malformed_result.error.error_type == "malformed_result_payload"
+    finally:
+        await facade.close()
+
+
+@pytest.mark.asyncio
+async def test_facade_result_view_adds_review_facts_without_persisting_them(
+    tmp_path: Path,
+) -> None:
+    application = LocalDocumentApplication(_app_settings(tmp_path))
+    facade = DocumentProcessingFacade(application)
+    try:
+        await facade.initialize_database()
+        session_factory = create_async_session_factory(application.engine)
+        result = ExtractionResult(
+            document=DocumentInfo(
+                user_mode_hint=DocumentModeHint.FORM,
+                detected_type=DetectedDocumentType.FORM,
+            ),
+            image_diagnostics=ImageDiagnostics(
+                file=ImageFileMetadata(
+                    mime_type="image/jpeg",
+                    file_size_bytes=123,
+                    file_extension=".jpg",
+                ),
+                image=ImageShape.from_dimensions(width=120, height=120),
+            ),
+            raw_text=RawText(text="Text"),
+            tables=(
+                ExtractedTable(
+                    title="Prenatal labs",
+                    columns=("Test", "Result"),
+                    rows=(TableRow(cells=("Blood type and Rh", "A+ / absc")),),
+                ),
+            ),
+        )
+        async with session_factory() as session:
+            repository = DocumentJobRepository(session)
+            job = await repository.create_job(DocumentModeHint.FORM, job_id="job-review")
+            job.status = JobStatus.RESULT_READY
+            job.extraction_result_payload = result.to_dict()
+            await session.commit()
+
+        view = await facade.get_extraction_result("job-review")
+
+        assert view.result_available is True
+        assert view.result is not None
+        review = view.result["review"]
+        assert isinstance(review, dict)
+        assert review["derived_table_facts"] == [
+            {
+                "label": "Blood type and Rh",
+                "value": "A+ / absc",
+                "source": "table",
+                "source_table": "Prenatal labs",
+                "source_row_index": 1,
+                "note": None,
+                "confidence": None,
+            }
+        ]
+        assert view.result["tables"] == result.to_dict()["tables"]
+
+        async with session_factory() as session:
+            persisted = await DocumentJobRepository(session).require_job("job-review")
+            assert persisted.extraction_result_payload is not None
+            assert "review" not in persisted.extraction_result_payload
     finally:
         await facade.close()
 

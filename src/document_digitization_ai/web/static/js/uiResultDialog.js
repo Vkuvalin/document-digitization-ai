@@ -349,6 +349,30 @@
     });
   }
 
+  function formatDerivedConfidence(value) {
+    const confidence = formatConfidence(value);
+    return confidence === "Не указана" ? "—" : confidence;
+  }
+
+  function normalizeDerivedTableFacts(result) {
+    const review = isObject(result.review) ? result.review : {};
+    return asArray(review.derived_table_facts)
+      .map((fact, index) => {
+        const payload = isObject(fact) ? fact : {};
+        const rowIndex = Number(payload.source_row_index);
+        return {
+          confidence: formatDerivedConfidence(payload.confidence),
+          label: textOrFallback(payload.label, `Значение ${index + 1}`),
+          note: textOrFallback(payload.note, ""),
+          sourceRow:
+            Number.isFinite(rowIndex) && rowIndex > 0 ? String(Math.trunc(rowIndex)) : "",
+          sourceTable: textOrFallback(payload.source_table, "Таблица"),
+          value: textOrFallback(payload.value, ""),
+        };
+      })
+      .filter((fact) => fact.label && fact.value);
+  }
+
   function normalizeWarnings(result) {
     const warnings = [];
 
@@ -393,11 +417,7 @@
     return warnings;
   }
 
-  function renderFields(fields) {
-    if (!fields.length) {
-      return "<div class=\"empty-state\"><strong>Поля вне таблиц не найдены</strong></div>";
-    }
-
+  function renderStandaloneFields(fields) {
     const rows = fields
       .map(
         (field) => `
@@ -424,6 +444,76 @@
           </thead>
           <tbody>${rows}</tbody>
         </table>
+      </div>
+    `;
+  }
+
+  function renderDerivedTableFacts(facts, truncated) {
+    if (!facts.length) {
+      return "";
+    }
+
+    const notice = truncated
+      ? `<p class="value-review-note">Показаны первые ${escapeHtml(facts.length)} значений.</p>`
+      : "";
+
+    return `
+      <section class="value-section">
+        <h3>Значения из таблиц</h3>
+        ${notice}
+        <div class="derived-fact-grid">
+          ${facts
+            .map(
+              (fact) => `
+                <article class="derived-fact-card">
+                  <div class="derived-fact-header">
+                    <strong>${escapeHtml(fact.label)}</strong>
+                    <span class="source-badge">из таблицы</span>
+                  </div>
+                  <p class="derived-fact-value">${escapeHtml(fact.value)}</p>
+                  <dl class="derived-fact-meta">
+                    <div>
+                      <dt>Источник</dt>
+                      <dd>${escapeHtml(fact.sourceTable)}</dd>
+                    </div>
+                    ${
+                      fact.sourceRow
+                        ? `<div><dt>Строка</dt><dd>${escapeHtml(fact.sourceRow)}</dd></div>`
+                        : ""
+                    }
+                    ${fact.note ? `<div><dt>Контекст</dt><dd>${escapeHtml(fact.note)}</dd></div>` : ""}
+                    <div>
+                      <dt>Уверенность</dt>
+                      <dd>${escapeHtml(fact.confidence)}</dd>
+                    </div>
+                  </dl>
+                </article>
+              `,
+            )
+            .join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderValues(fields, derivedTableFacts, derivedFactsTruncated) {
+    if (!fields.length && !derivedTableFacts.length) {
+      return `
+        <div class="empty-state">
+          <strong>Поля и значения не найдены.</strong>
+          <p>Проверьте вкладки “Таблицы” и “Текст”.</p>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="value-review">
+        ${
+          fields.length
+            ? `<section class="value-section"><h3>Поля вне таблиц</h3>${renderStandaloneFields(fields)}</section>`
+            : ""
+        }
+        ${renderDerivedTableFacts(derivedTableFacts, derivedFactsTruncated)}
       </div>
     `;
   }
@@ -541,6 +631,7 @@
         completedAt: formatDate(summary.completed_at),
         createdAt: formatDate(summary.created_at),
         documentType: documentTypeLabel(summary.document_type),
+        derivedTableFacts: [],
         errorMessage: "",
         fields: [],
         fileName: `Задание ${shortId(summary.job_id)}`,
@@ -553,6 +644,8 @@
         markdownError: "",
         metadata: {
           confidence: "Не указана",
+          derivedFactsTruncated: false,
+          derivedTableFactCount: 0,
           fieldCount: summary.field_count || 0,
           language: "Не указан",
           tableCount: summary.table_count || 0,
@@ -578,6 +671,7 @@
         completedAt: "",
         createdAt: "Текущая сессия",
         documentType: "Загруженный документ",
+        derivedTableFacts: [],
         errorMessage: "",
         fields: [],
         fileName: payload.upload.fileName,
@@ -590,6 +684,8 @@
         markdownError: "",
         metadata: {
           confidence: "Не указана",
+          derivedFactsTruncated: false,
+          derivedTableFactCount: 0,
           fieldCount: 0,
           fileSize: payload.upload.fileSize,
           language: "Не указан",
@@ -679,8 +775,10 @@
       const result = isObject(resultResponse.result) ? resultResponse.result : {};
       const document = isObject(result.document) ? result.document : {};
       const rawText = isObject(result.raw_text) ? result.raw_text : {};
+      const review = isObject(result.review) ? result.review : {};
       const fields = normalizeFields(result);
       const tables = normalizeTables(result);
+      const derivedTableFacts = normalizeDerivedTableFacts(result);
       const warnings = normalizeWarnings(result);
       const markdown =
         markdownResponse && markdownResponse.result_available && typeof markdownResponse.markdown === "string"
@@ -689,6 +787,7 @@
 
       mergeJob(jobId, {
         documentType: documentTypeLabel(document.detected_type || (activeJob && activeJob.documentType)),
+        derivedTableFacts,
         errorMessage: "",
         fields,
         isLoadingResult: false,
@@ -698,6 +797,8 @@
         metadata: {
           ...((activeJob && activeJob.metadata) || {}),
           confidence: formatConfidence(document.detected_type_confidence || rawText.confidence),
+          derivedFactsTruncated: Boolean(review.derived_table_facts_truncated),
+          derivedTableFactCount: derivedTableFacts.length,
           fieldCount: fields.length,
           language: languageLabel(document.language),
           tableCount: tables.length,
@@ -767,6 +868,7 @@
           <div class="summary-card"><span>Язык</span><strong>${escapeHtml(metadata.language)}</strong></div>
           <div class="summary-card"><span>Проверка</span><strong>${escapeHtml(metadata.validationStatus)}</strong></div>
           <div class="summary-card"><span>Поля вне таблиц</span><strong>${escapeHtml(metadata.fieldCount)}</strong></div>
+          <div class="summary-card"><span>Значения из таблиц</span><strong>${escapeHtml(metadata.derivedTableFactCount || 0)}</strong></div>
           <div class="summary-card"><span>Таблицы</span><strong>${escapeHtml(metadata.tableCount)}</strong></div>
           <div class="summary-card"><span>Предупреждения</span><strong>${escapeHtml(activeJob.warningCount)}</strong></div>
         </div>
@@ -827,7 +929,11 @@
       if (activeTab === "warnings") {
         tabPanel.innerHTML = renderWarnings();
       } else if (activeTab === "fields") {
-        tabPanel.innerHTML = renderFields(activeJob.fields);
+        tabPanel.innerHTML = renderValues(
+          activeJob.fields,
+          activeJob.derivedTableFacts || [],
+          Boolean(activeJob.metadata.derivedFactsTruncated),
+        );
       } else if (activeTab === "tables") {
         tabPanel.innerHTML = renderTables(activeJob.tables);
       } else if (activeTab === "raw") {
