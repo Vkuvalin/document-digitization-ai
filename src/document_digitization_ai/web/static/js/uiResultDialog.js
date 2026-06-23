@@ -263,6 +263,10 @@
     return String(jobId || "").slice(0, 8) || "без id";
   }
 
+  function stableJobFallback(jobId) {
+    return `Задание ${shortId(jobId)}`;
+  }
+
   function fileNameFromArtifacts(artifacts) {
     const artifact = asArray(artifacts).find((item) => item && item.relative_path);
     if (!artifact) {
@@ -271,6 +275,18 @@
 
     const parts = String(artifact.relative_path).split("/");
     return parts[parts.length - 1] || "";
+  }
+
+  function isGenericStoredArtifactName(value) {
+    return /^original\.[a-z0-9]+$/i.test(String(value || "").trim());
+  }
+
+  function detailFileNameForJob(jobId, candidate, existingName) {
+    if (candidate && !isGenericStoredArtifactName(candidate)) {
+      return candidate;
+    }
+
+    return existingName || stableJobFallback(jobId);
   }
 
   function documentTypeLabel(value) {
@@ -376,42 +392,42 @@
   function normalizeWarnings(result) {
     const warnings = [];
 
-    asArray(result.warnings).forEach((warning) => {
-      const normalized = warningFromPayload(warning, "Результат");
-      if (normalized) {
-        warnings.push(normalized);
+    function appendWarnings(source, defaultTarget) {
+      if (!isObject(source)) {
+        return;
       }
-    });
 
-    if (isObject(result.raw_text)) {
-      asArray(result.raw_text.warnings).forEach((warning) => {
-        const normalized = warningFromPayload(warning, "Текст");
+      asArray(source.warnings).forEach((warning) => {
+        const normalized = warningFromPayload(warning, defaultTarget);
         if (normalized) {
           warnings.push(normalized);
         }
       });
     }
 
+    appendWarnings(result, "Результат");
+    appendWarnings(result.raw_text, "Текст");
+    appendWarnings(result.image_diagnostics, "Качество изображения");
+
     asArray(result.fields).forEach((field) => {
       const payload = isObject(field) ? field : {};
       const target = textOrFallback(payload.label, "Поле");
-      asArray(payload.warnings).forEach((warning) => {
-        const normalized = warningFromPayload(warning, target);
-        if (normalized) {
-          warnings.push(normalized);
-        }
-      });
+      appendWarnings(payload, target);
     });
 
     asArray(result.tables).forEach((table, index) => {
       const payload = isObject(table) ? table : {};
       const target = textOrFallback(payload.title, `Таблица ${index + 1}`);
-      asArray(payload.warnings).forEach((warning) => {
-        const normalized = warningFromPayload(warning, target);
-        if (normalized) {
-          warnings.push(normalized);
-        }
+      appendWarnings(payload, target);
+      asArray(payload.rows).forEach((row, rowIndex) => {
+        const rowPayload = isObject(row) ? row : {};
+        appendWarnings(rowPayload, `${target}, строка ${rowIndex + 1}`);
       });
+    });
+
+    asArray(result.blocks).forEach((block, index) => {
+      const payload = isObject(block) ? block : {};
+      appendWarnings(payload, `Текстовый блок ${index + 1}`);
     });
 
     return warnings;
@@ -634,7 +650,7 @@
         derivedTableFacts: [],
         errorMessage: "",
         fields: [],
-        fileName: `Задание ${shortId(summary.job_id)}`,
+        fileName: stableJobFallback(summary.job_id),
         id: summary.job_id,
         isHistorical: true,
         isLoadingResult: false,
@@ -654,6 +670,7 @@
         previewKind: "placeholder",
         previewUrl: "",
         rawText: "",
+        reconstructedText: "",
         resultAvailable,
         status,
         statusLabel: statusLabel(status, resultAvailable),
@@ -698,6 +715,7 @@
         previewKind: payload.upload.previewKind,
         previewUrl: payload.upload.previewUrl,
         rawText: "",
+        reconstructedText: "",
         resultAvailable,
         status,
         statusLabel: statusLabel(status, resultAvailable),
@@ -751,11 +769,12 @@
       const metadata = detailResponse.metadata || {};
       const fileName = fileNameFromArtifacts(detailResponse.input_artifacts);
       const sourceSize = Number(metadata.source_image_size_bytes);
+      const existingFileName = activeJob && activeJob.id === jobId ? activeJob.fileName : "";
 
       applyStatus(jobId, statusView);
       mergeJob(jobId, {
         documentType: documentTypeLabel(summary.document_type),
-        fileName: fileName || (activeJob && activeJob.fileName) || `Задание ${shortId(jobId)}`,
+        fileName: detailFileNameForJob(jobId, fileName, existingFileName),
         metadata: {
           ...((activeJob && activeJob.metadata) || {}),
           fileSize: formatFileSize(sourceSize) || ((activeJob && activeJob.metadata.fileSize) || ""),
@@ -774,6 +793,7 @@
     function applyResult(jobId, resultResponse, markdownResponse) {
       const result = isObject(resultResponse.result) ? resultResponse.result : {};
       const document = isObject(result.document) ? result.document : {};
+      const presentation = isObject(result.presentation) ? result.presentation : {};
       const rawText = isObject(result.raw_text) ? result.raw_text : {};
       const review = isObject(result.review) ? result.review : {};
       const fields = normalizeFields(result);
@@ -804,6 +824,10 @@
           tableCount: tables.length,
         },
         rawText: textOrFallback(rawText.text, ""),
+        reconstructedText: textOrFallback(
+          presentation.text_markdown,
+          textOrFallback(rawText.text, ""),
+        ),
         resultAvailable: Boolean(resultResponse.result_available),
         status: "RESULT_READY",
         statusLabel: "Готово",
@@ -937,7 +961,9 @@
       } else if (activeTab === "tables") {
         tabPanel.innerHTML = renderTables(activeJob.tables);
       } else if (activeTab === "raw") {
-        tabPanel.innerHTML = `<pre class="raw-text-block">${escapeHtml(activeJob.rawText)}</pre>`;
+        tabPanel.innerHTML = activeJob.reconstructedText
+          ? renderMarkdown(activeJob.reconstructedText)
+          : `<pre class="raw-text-block">${escapeHtml(activeJob.rawText)}</pre>`;
       } else if (activeTab === "markdown") {
         tabPanel.innerHTML = activeJob.markdown
           ? renderMarkdown(activeJob.markdown)

@@ -7,6 +7,7 @@ from document_digitization_ai.export.markdown import (
     format_empty as format_empty,
     markdown_table_cell as markdown_table_cell,
     render_extraction_result_markdown as render_extraction_result_markdown,
+    render_reconstructed_text_markdown as render_reconstructed_text_markdown,
 )
 from document_digitization_ai.export.models import (
     ExportDocument as ExportDocument,
@@ -42,4 +43,5 @@ __all__ = [
     "markdown_table_cell",
     "reconstruct_extraction_result_from_payload",
     "render_extraction_result_markdown",
+    "render_reconstructed_text_markdown",
 ]

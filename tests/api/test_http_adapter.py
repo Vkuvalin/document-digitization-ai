@@ -89,8 +89,21 @@ def test_web_ui_static_serving_under_app_keeps_api_routes_clean(
     assert "Поля вне таблиц" in result_dialog_script.text
     assert "Значения из таблиц" in result_dialog_script.text
     assert "derived_table_facts" in result_dialog_script.text
+    assert "presentation.text_markdown" in result_dialog_script.text
+    assert "reconstructedText" in result_dialog_script.text
+    assert "result.image_diagnostics" in result_dialog_script.text
+    assert "payload.rows" in result_dialog_script.text
+    assert "result.blocks" in result_dialog_script.text
+    assert "stableJobFallback" in result_dialog_script.text
+    assert "detailFileNameForJob" in result_dialog_script.text
+    assert "isGenericStoredArtifactName" in result_dialog_script.text
+    assert "original\\." in result_dialog_script.text
     assert "derived-fact-card" in result_dialog_script.text
     assert "table-section" in result_dialog_script.text
+    assert "flex-wrap: nowrap;" in stylesheet.text
+    assert ".workspace-files-panel .job-card" in stylesheet.text
+    assert "min-height: 174px;" in stylesheet.text
+    assert "overflow: hidden;" in stylesheet.text
     assert ".derived-fact-grid" in stylesheet.text
     assert ".table-section + .table-section" in stylesheet.text
     assert root.status_code == 404

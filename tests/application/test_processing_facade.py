@@ -18,6 +18,7 @@ from document_digitization_ai.application import (
 from document_digitization_ai.application import dtos as facade_dtos
 from document_digitization_ai.application import facade as facade_module
 from document_digitization_ai.contracts import (
+    BlockType,
     DetectedDocumentType,
     DocumentInfo,
     DocumentModeHint,
@@ -29,6 +30,7 @@ from document_digitization_ai.contracts import (
     JobStatus,
     RawText,
     TableRow,
+    TextBlock,
     Warning,
     WarningCode,
 )
@@ -302,7 +304,14 @@ async def test_facade_result_view_adds_review_facts_without_persisting_them(
                 ),
                 image=ImageShape.from_dimensions(width=120, height=120),
             ),
-            raw_text=RawText(text="Text"),
+            raw_text=RawText(
+                text=(
+                    "Prenatal labs\n"
+                    "\n"
+                    "Test Result\n"
+                    "Blood type and Rh A+ / absc"
+                )
+            ),
             tables=(
                 ExtractedTable(
                     title="Prenatal labs",
@@ -336,11 +345,21 @@ async def test_facade_result_view_adds_review_facts_without_persisting_them(
             }
         ]
         assert view.result["tables"] == result.to_dict()["tables"]
+        presentation = view.result["presentation"]
+        assert isinstance(presentation, dict)
+        assert "Prenatal labs" in presentation["text_markdown"]
+        assert "### Поля" not in presentation["text_markdown"]
+        assert "Blood type and Rh" in presentation["text_markdown"]
+        assert "| Test              | Result" in presentation["text_markdown"]
+        assert "Test Result\nBlood type and Rh A+ / absc" not in (
+            presentation["text_markdown"]
+        )
 
         async with session_factory() as session:
             persisted = await DocumentJobRepository(session).require_job("job-review")
             assert persisted.extraction_result_payload is not None
             assert "review" not in persisted.extraction_result_payload
+            assert "presentation" not in persisted.extraction_result_payload
     finally:
         await facade.close()
 
@@ -460,6 +479,36 @@ def test_facade_summary_warning_count_uses_nested_result_warnings() -> None:
                 ),
             ),
         ),
+        tables=(
+            ExtractedTable(
+                title="Line items",
+                columns=("Item",),
+                rows=(
+                    TableRow(
+                        cells=("Unreadable row",),
+                        warnings=(
+                            Warning(
+                                code=WarningCode.AMBIGUOUS_TABLE,
+                                message="Строка таблицы неоднозначна.",
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        blocks=(
+            TextBlock(
+                type=BlockType.PARAGRAPH,
+                text="Block text",
+                order=1,
+                warnings=(
+                    Warning(
+                        code=WarningCode.PARTIAL_EXTRACTION,
+                        message="Текстовый блок извлечён частично.",
+                    ),
+                ),
+            ),
+        ),
         warnings=(
             Warning(
                 code=WarningCode.PARTIAL_EXTRACTION,
@@ -484,7 +533,7 @@ def test_facade_summary_warning_count_uses_nested_result_warnings() -> None:
 
     summary = facade_module._summary_from_snapshots(job, latest_attempt=None)
 
-    assert summary.warning_count == 3
+    assert summary.warning_count == 5
 
 
 class ObservingApplication(LocalDocumentApplication):

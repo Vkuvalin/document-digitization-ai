@@ -31,8 +31,10 @@ from document_digitization_ai.db import (
 )
 from document_digitization_ai.export import (
     ExtractionResultReconstructionError,
+    build_extraction_result_export_document,
     count_extraction_result_warnings,
     reconstruct_extraction_result_from_payload,
+    render_reconstructed_text_markdown,
 )
 from document_digitization_ai.services import DocumentExtractionWorkflowError
 from document_digitization_ai.storage import (
@@ -336,6 +338,11 @@ class DocumentProcessingFacade:
 
         result_payload = result.to_dict()
         result_payload["review"] = build_result_review_payload(result)
+        result_payload["presentation"] = {
+            "text_markdown": render_reconstructed_text_markdown(
+                build_extraction_result_export_document(result)
+            )
+        }
         return ExtractionResultView(
             job_id=job_id,
             result_available=True,

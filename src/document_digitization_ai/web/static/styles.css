@@ -868,21 +868,27 @@ select:focus-visible,
 
 .tab-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 5px;
+  flex-wrap: nowrap;
+  gap: 3px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 4px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   background: var(--color-surface-soft);
+  scrollbar-width: thin;
 }
 
 .tab-list button {
+  flex: 0 1 auto;
+  min-width: 0;
   min-height: 36px;
-  padding: 8px 12px;
+  padding: 6px 7px;
   border: 0;
   border-radius: var(--radius-control);
   background: transparent;
   color: var(--color-muted);
+  font-size: 14px;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -899,6 +905,13 @@ select:focus-visible,
   background: var(--color-primary-soft);
   color: var(--color-primary);
   box-shadow: 0 10px 22px rgba(36, 88, 211, 0.12);
+}
+
+.result-actions .button-outline {
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .tab-panel {
@@ -1152,7 +1165,7 @@ th {
   gap: 10px;
   width: 100%;
   min-height: 112px;
-  overflow: visible;
+  overflow: hidden;
   padding: 14px 14px 16px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
@@ -1197,6 +1210,26 @@ th {
   align-items: flex-start;
   flex-direction: column;
   gap: 7px;
+}
+
+.workspace-files-panel .job-card {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-height: 154px;
+  padding-bottom: 10px;
+}
+
+.workspace-files-panel .job-meta-row {
+  width: 100%;
+  min-height: 0;
+  margin-top: auto;
+}
+
+.workspace-files-panel .job-meta-row span {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .info-modal {
@@ -1331,5 +1364,10 @@ th {
   .preview-frame {
     width: 64px;
     height: 64px;
+  }
+
+  .tab-list {
+    flex-wrap: wrap;
+    overflow-x: visible;
   }
 }
