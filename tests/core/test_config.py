@@ -34,6 +34,7 @@ SUPPORTED_ENV_NAMES = {
     "STORAGE_DATA_DIR",
     "STORAGE_UPLOADS_DIR",
     "STORAGE_RESULTS_DIR",
+    "ARTIFACT_RETENTION_DAYS",
     "MEDIA_STAGING_BACKEND",
     "IMGBB_API_KEY",
     "MEDIA_STAGING_TTL_SECONDS",
@@ -59,6 +60,7 @@ def test_app_settings_loads_without_real_secrets(monkeypatch: pytest.MonkeyPatch
     assert settings.environment.name == "local"
     assert settings.database.url == "sqlite+aiosqlite:///./data/app.db"
     assert settings.storage.data_dir == Path("data")
+    assert settings.storage.artifact_retention_days == 7
     assert settings.media_staging.backend is MediaStagingBackend.NONE
     assert settings.media_staging.require_imgbb_api_key() is None
     assert settings.extraction.provider_name is ExtractionProviderName.FAKE
@@ -80,6 +82,7 @@ def test_app_settings_reads_environment_into_grouped_settings(
     monkeypatch.setenv("STORAGE_DATA_DIR", "./tmp/data")
     monkeypatch.setenv("STORAGE_UPLOADS_DIR", "./tmp/uploads")
     monkeypatch.setenv("STORAGE_RESULTS_DIR", "./tmp/results")
+    monkeypatch.setenv("ARTIFACT_RETENTION_DAYS", "14")
     monkeypatch.setenv("OPENROUTER_API_KEY", "openrouter-real-key")
     monkeypatch.setenv("OPENROUTER_BASE_URL", "https://example.test/api")
     monkeypatch.setenv("OPENROUTER_MODEL", "openai/example-vision")
@@ -99,6 +102,7 @@ def test_app_settings_reads_environment_into_grouped_settings(
     assert settings.database.echo is True
     assert settings.storage.database_url == "sqlite+aiosqlite:///./tmp/test.db"
     assert settings.storage.uploads_dir == Path("tmp/uploads")
+    assert settings.storage.artifact_retention_days == 14
     assert settings.openrouter.require_api_key() == "openrouter-real-key"
     assert settings.openrouter.http_referer is None
     assert "openrouter-real-key" not in repr(settings.openrouter)

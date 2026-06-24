@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 from pathlib import PurePosixPath, PureWindowsPath
+from shutil import rmtree
 from typing import Any
 
 from document_digitization_ai.core import StorageSettings
@@ -40,6 +41,12 @@ class StoredExtractionAttemptArtifact:
 class StoredMarkdownExportArtifact:
     relative_path: str
     size_bytes: int
+
+
+@dataclass(frozen=True, slots=True)
+class DeletedArtifactTree:
+    relative_path: str
+    deleted: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,6 +194,21 @@ class MarkdownExportArtifactLayout:
             relative_path=relative_path,
             size_bytes=len(data),
         )
+
+
+def delete_artifact_tree(
+    artifact_root: Path,
+    relative_path: str,
+) -> DeletedArtifactTree:
+    safe_relative_path = validate_relative_artifact_path(relative_path)
+    target_path = _safe_artifact_target_path(artifact_root, safe_relative_path)
+    if not target_path.exists():
+        return DeletedArtifactTree(relative_path=safe_relative_path, deleted=False)
+    if target_path.is_dir():
+        rmtree(target_path)
+    else:
+        target_path.unlink()
+    return DeletedArtifactTree(relative_path=safe_relative_path, deleted=True)
 
 
 def build_extraction_attempt_artifact_path(

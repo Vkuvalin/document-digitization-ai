@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from mimetypes import guess_type
 from pathlib import Path, PureWindowsPath
 from uuid import uuid4
 
@@ -11,12 +12,15 @@ from document_digitization_ai.application.dtos import (
     ArtifactReference,
     AttemptSummary,
     BackendErrorView,
+    DeleteJobView,
     ExtractionResultView,
     JobDetailView,
     JobHistoryView,
+    JobPreviewFileView,
     JobStatusView,
     JobSummary,
     MarkdownExportView,
+    RetentionCleanupView,
     SubmitDocumentResult,
 )
 from document_digitization_ai.application.result_review import build_result_review_payload
@@ -40,12 +44,24 @@ from document_digitization_ai.services import DocumentExtractionWorkflowError
 from document_digitization_ai.storage import (
     ArtifactLayoutError,
     MarkdownExportArtifactLayout,
+    delete_artifact_tree,
 )
 from document_digitization_ai.storage.artifacts import validate_relative_artifact_path
 
 
 _MAX_JOB_HISTORY_LIMIT = 100
 _FILE_SUBMISSION_DIR = "_facade_file_submissions"
+_INLINE_PREVIEW_CONTENT_TYPES = frozenset(
+    {
+        "application/pdf",
+        "image/bmp",
+        "image/gif",
+        "image/jpeg",
+        "image/png",
+        "image/tiff",
+        "image/webp",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +116,12 @@ class _ArtifactGroups:
             *self.result_artifacts,
             *self.export_artifacts,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class _StorageCleanupResult:
+    artifacts_deleted: int
+    unsafe_artifacts_skipped: int = 0
 
 
 class DocumentProcessingFacade:
@@ -420,6 +442,219 @@ class DocumentProcessingFacade:
             artifacts=artifact_groups.all_artifacts,
             error=artifact_groups.error,
         )
+
+    async def get_job_preview_file(self, job_id: str) -> JobPreviewFileView:
+        artifact_job_id_error = _validate_artifact_job_id(self._application, job_id)
+        if artifact_job_id_error is not None:
+            return JobPreviewFileView(job_id=job_id, error=artifact_job_id_error)
+
+        async with self._application._session_factory() as session:
+            job = await DocumentJobRepository(session).get_job(job_id)
+            if job is None:
+                return JobPreviewFileView(job_id=job_id, error=_not_found_error())
+            job_snapshot = _snapshot_job(job)
+
+        if job_snapshot.source_image_path is None:
+            return JobPreviewFileView(
+                job_id=job_id,
+                error=BackendErrorView(
+                    error_type="artifact_not_found",
+                    error_message="Original uploaded file was not found.",
+                ),
+            )
+
+        try:
+            target_path = _safe_upload_file_path(
+                self._application,
+                job_snapshot.source_image_path,
+            )
+        except (OSError, ValueError):
+            return JobPreviewFileView(
+                job_id=job_id,
+                error=BackendErrorView(
+                    error_type="artifact_access_denied",
+                    error_message="Original uploaded file is not safe to serve.",
+                ),
+            )
+
+        if not target_path.is_file():
+            return JobPreviewFileView(
+                job_id=job_id,
+                error=BackendErrorView(
+                    error_type="artifact_not_found",
+                    error_message="Original uploaded file was not found.",
+                ),
+            )
+
+        content_type = _safe_preview_content_type(
+            target_path,
+            job_snapshot.source_image_mime_type,
+        )
+        return JobPreviewFileView(
+            job_id=job_snapshot.id,
+            path=target_path,
+            filename=_safe_download_filename(target_path.name),
+            content_type=content_type,
+            size_bytes=target_path.stat().st_size,
+            supports_inline_preview=content_type in _INLINE_PREVIEW_CONTENT_TYPES,
+        )
+
+    async def delete_job(self, job_id: str) -> DeleteJobView:
+        artifact_job_id_error = _validate_artifact_job_id(self._application, job_id)
+        if artifact_job_id_error is not None:
+            return DeleteJobView(
+                job_id=job_id,
+                deleted=False,
+                error=artifact_job_id_error,
+            )
+
+        async with self._application._session_factory() as session:
+            repository = DocumentJobRepository(session)
+            job = await repository.get_job(job_id)
+            if job is None:
+                return DeleteJobView(job_id=job_id, deleted=False)
+
+            try:
+                cleanup = _cleanup_storage_for_job(self._application, job.id)
+                deleted = await repository.delete_job(job.id)
+                await session.commit()
+            except OSError:
+                await session.rollback()
+                return DeleteJobView(
+                    job_id=job_id,
+                    deleted=False,
+                    error=BackendErrorView(
+                        error_type="artifact_delete_failed",
+                        error_message="Stored files could not be deleted.",
+                    ),
+                )
+            except Exception:
+                await session.rollback()
+                raise
+
+        return DeleteJobView(
+            job_id=job_id,
+            deleted=deleted,
+            artifacts_deleted=cleanup.artifacts_deleted,
+            unsafe_artifacts_skipped=cleanup.unsafe_artifacts_skipped,
+        )
+
+    async def cleanup_expired_jobs(
+        self,
+        *,
+        now: datetime | None = None,
+    ) -> RetentionCleanupView:
+        retention_days = self._application.settings.storage.artifact_retention_days
+        now_utc = _coerce_utc_datetime(now or datetime.now(UTC))
+        cutoff = now_utc - timedelta(days=retention_days)
+        jobs_deleted = 0
+        artifacts_deleted = 0
+        unsafe_artifacts_skipped = 0
+
+        async with self._application._session_factory() as session:
+            repository = DocumentJobRepository(session)
+            jobs = await repository.list_jobs_created_before(cutoff)
+            try:
+                for job in jobs:
+                    cleanup = _cleanup_storage_for_job(self._application, job.id)
+                    artifacts_deleted += cleanup.artifacts_deleted
+                    unsafe_artifacts_skipped += cleanup.unsafe_artifacts_skipped
+                    if await repository.delete_job(job.id):
+                        jobs_deleted += 1
+                await session.commit()
+            except OSError:
+                await session.rollback()
+                return RetentionCleanupView(
+                    retention_days=retention_days,
+                    cutoff_at=cutoff,
+                    jobs_deleted=jobs_deleted,
+                    artifacts_deleted=artifacts_deleted,
+                    unsafe_artifacts_skipped=unsafe_artifacts_skipped,
+                    error=BackendErrorView(
+                        error_type="artifact_delete_failed",
+                        error_message="Stored files could not be deleted.",
+                    ),
+                )
+            except Exception:
+                await session.rollback()
+                raise
+
+        return RetentionCleanupView(
+            retention_days=retention_days,
+            cutoff_at=cutoff,
+            jobs_deleted=jobs_deleted,
+            artifacts_deleted=artifacts_deleted,
+            unsafe_artifacts_skipped=unsafe_artifacts_skipped,
+        )
+
+
+def _safe_upload_file_path(
+    application: LocalDocumentApplication,
+    source_image_path: str,
+) -> Path:
+    uploads_root = application.settings.storage.uploads_dir.resolve()
+    target_path = Path(source_image_path).resolve(strict=False)
+    target_path.relative_to(uploads_root)
+    return target_path
+
+
+def _safe_preview_content_type(
+    target_path: Path,
+    persisted_content_type: str | None,
+) -> str:
+    guessed_content_type, _encoding = guess_type(target_path.name)
+    for candidate in (persisted_content_type, guessed_content_type):
+        normalized = _normalize_content_type(candidate)
+        if normalized in _INLINE_PREVIEW_CONTENT_TYPES:
+            return normalized
+    return "application/octet-stream"
+
+
+def _normalize_content_type(value: str | None) -> str:
+    if value is None:
+        return ""
+    return value.split(";", 1)[0].strip().lower()
+
+
+def _safe_download_filename(filename: str) -> str:
+    value = filename.strip().replace('"', "_").replace(";", "_")
+    if "\r" in value or "\n" in value:
+        return "document.bin"
+    try:
+        return _safe_submission_filename(value)
+    except ValueError:
+        return "document.bin"
+
+
+def _cleanup_storage_for_job(
+    application: LocalDocumentApplication,
+    job_id: str,
+) -> _StorageCleanupResult:
+    targets = (
+        (application.settings.storage.uploads_dir, job_id),
+        (application.settings.storage.results_dir, job_id),
+        (application.settings.storage.results_dir, f"jobs/{job_id}"),
+    )
+    artifacts_deleted = 0
+    unsafe_artifacts_skipped = 0
+    for root, relative_path in targets:
+        try:
+            deleted_tree = delete_artifact_tree(root, relative_path)
+        except ArtifactLayoutError:
+            unsafe_artifacts_skipped += 1
+            continue
+        if deleted_tree.deleted:
+            artifacts_deleted += 1
+    return _StorageCleanupResult(
+        artifacts_deleted=artifacts_deleted,
+        unsafe_artifacts_skipped=unsafe_artifacts_skipped,
+    )
+
+
+def _coerce_utc_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _snapshot_job(job: DocumentJob) -> _JobSnapshot:

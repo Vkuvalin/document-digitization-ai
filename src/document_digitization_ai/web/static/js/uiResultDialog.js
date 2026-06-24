@@ -308,6 +308,28 @@
     return statusLabel(fallbackStatus, resultAvailable);
   }
 
+  function originalInputArtifact(detailResponse) {
+    return asArray(detailResponse.input_artifacts).find((artifact) => artifact && artifact.kind === "input_original") || null;
+  }
+
+  function isPreviewImageContentType(value) {
+    const contentType = String(value || "").split(";")[0].trim().toLowerCase();
+    return contentType.startsWith("image/") && contentType !== "image/svg+xml";
+  }
+
+  function originalFileHint(contentType) {
+    const normalized = String(contentType || "").split(";")[0].trim().toLowerCase();
+    if (isPreviewImageContentType(normalized)) {
+      return "Изображение открыто через безопасный backend endpoint.";
+    }
+
+    if (normalized === "application/pdf") {
+      return "PDF доступен для открытия или скачивания через backend.";
+    }
+
+    return "Файл доступен для открытия или скачивания через backend.";
+  }
+
   function warningFromPayload(payload, defaultTarget) {
     if (!isObject(payload)) {
       return null;
@@ -618,6 +640,12 @@
     const tabButtons = Array.from(document.querySelectorAll("[data-result-tab]"));
     const copyButton = document.getElementById("copyMarkdownButton");
     const downloadButton = document.getElementById("downloadMarkdownButton");
+    const deleteButton = document.getElementById("deleteJobButton");
+    const deleteConfirmBackdrop = document.getElementById("deleteConfirmBackdrop");
+    const deleteConfirmModal = document.getElementById("deleteConfirmModal");
+    const deleteConfirmCloseButton = document.getElementById("deleteConfirmCloseButton");
+    const deleteConfirmCancelButton = document.getElementById("deleteConfirmCancelButton");
+    const deleteConfirmSubmitButton = document.getElementById("deleteConfirmSubmitButton");
     const jobList = document.getElementById("workspaceJobList");
     const toast = document.getElementById("toast");
     let jobs = [];
@@ -629,6 +657,8 @@
     let selectionToken = 0;
     let pollingController = null;
     let historyController = null;
+    let deleteConfirmationResolve = null;
+    let deleteConfirmationFocusTarget = null;
 
     function showToast(message) {
       window.clearTimeout(toastTimer);
@@ -639,6 +669,56 @@
       }, 2200);
     }
 
+    function isDeleteConfirmationOpen() {
+      return deleteConfirmModal && !deleteConfirmModal.classList.contains("is-hidden");
+    }
+
+    function restoreDeleteConfirmationFocus() {
+      const focusTarget = deleteConfirmationFocusTarget;
+      deleteConfirmationFocusTarget = null;
+
+      if (focusTarget && document.contains(focusTarget) && typeof focusTarget.focus === "function") {
+        focusTarget.focus();
+      }
+    }
+
+    function resolveDeleteConfirmation(confirmed) {
+      if (!deleteConfirmationResolve) {
+        return;
+      }
+
+      const resolve = deleteConfirmationResolve;
+      deleteConfirmationResolve = null;
+      deleteConfirmModal.classList.add("is-hidden");
+      deleteConfirmBackdrop.classList.add("is-hidden");
+      restoreDeleteConfirmationFocus();
+      resolve(confirmed);
+    }
+
+    function requestDeleteConfirmation() {
+      if (
+        !deleteConfirmBackdrop ||
+        !deleteConfirmModal ||
+        !deleteConfirmCancelButton ||
+        !deleteConfirmSubmitButton
+      ) {
+        showToast("Не удалось открыть подтверждение удаления");
+        return Promise.resolve(false);
+      }
+
+      if (isDeleteConfirmationOpen()) {
+        return Promise.resolve(false);
+      }
+
+      return new Promise((resolve) => {
+        deleteConfirmationResolve = resolve;
+        deleteConfirmationFocusTarget = document.activeElement;
+        deleteConfirmBackdrop.classList.remove("is-hidden");
+        deleteConfirmModal.classList.remove("is-hidden");
+        deleteConfirmCancelButton.focus();
+      });
+    }
+
     function createHistoryJob(summary) {
       const status = summary.status || "";
       const resultAvailable = Boolean(summary.result_available);
@@ -647,8 +727,10 @@
         completedAt: formatDate(summary.completed_at),
         createdAt: formatDate(summary.created_at),
         documentType: documentTypeLabel(summary.document_type),
+        downloadUrl: "",
         derivedTableFacts: [],
         errorMessage: "",
+        fileUrl: "",
         fields: [],
         fileName: stableJobFallback(summary.job_id),
         id: summary.job_id,
@@ -688,8 +770,10 @@
         completedAt: "",
         createdAt: "Текущая сессия",
         documentType: "Загруженный документ",
+        downloadUrl: "",
         derivedTableFacts: [],
         errorMessage: "",
+        fileUrl: "",
         fields: [],
         fileName: payload.upload.fileName,
         id: payload.submit.job_id,
@@ -767,13 +851,37 @@
       const summary = detailResponse.summary || {};
       const statusView = detailResponse.status || {};
       const metadata = detailResponse.metadata || {};
+      const originalArtifact = originalInputArtifact(detailResponse) || {};
       const fileName = fileNameFromArtifacts(detailResponse.input_artifacts);
       const sourceSize = Number(metadata.source_image_size_bytes);
       const existingFileName = activeJob && activeJob.id === jobId ? activeJob.fileName : "";
+      const existingPreviewUrl = activeJob && activeJob.id === jobId ? activeJob.previewUrl : "";
+      const ownsExistingPreviewUrl = Boolean(activeJob && activeJob.id === jobId && activeJob.ownsPreviewUrl);
+      const originalExists = Boolean(originalArtifact.exists);
+      const originalContentType = textOrFallback(
+        originalArtifact.content_type || metadata.source_image_mime_type,
+        "",
+      );
+      const backendPreviewUrl = originalExists ? apiClient.getJobPreviewUrl(jobId) : "";
+      const backendDownloadUrl = originalExists ? apiClient.getJobPreviewUrl(jobId, { download: true }) : "";
+      const previewKind = ownsExistingPreviewUrl && existingPreviewUrl
+        ? activeJob.previewKind
+        : originalExists && isPreviewImageContentType(originalContentType)
+          ? "image"
+          : originalExists
+            ? "file"
+            : "placeholder";
+      const previewUrl = ownsExistingPreviewUrl && existingPreviewUrl
+        ? existingPreviewUrl
+        : previewKind === "image"
+          ? backendPreviewUrl
+          : "";
 
       applyStatus(jobId, statusView);
       mergeJob(jobId, {
+        downloadUrl: backendDownloadUrl,
         documentType: documentTypeLabel(summary.document_type),
+        fileUrl: backendPreviewUrl,
         fileName: detailFileNameForJob(jobId, fileName, existingFileName),
         metadata: {
           ...((activeJob && activeJob.metadata) || {}),
@@ -786,6 +894,9 @@
             statusView.result_available,
           ),
         },
+        previewKind,
+        previewUrl,
+        sourceContentType: originalContentType,
         warningCount: summary.warning_count || 0,
       });
     }
@@ -837,6 +948,25 @@
       });
     }
 
+    function renderPreviewPlaceholder(job, message) {
+      const actions = job.fileUrl
+        ? `
+          <div class="preview-placeholder-actions">
+            <a class="button button-outline" href="${escapeHtml(job.fileUrl)}" target="_blank" rel="noopener">Открыть файл</a>
+            <a class="button button-outline" href="${escapeHtml(job.downloadUrl || job.fileUrl)}">Скачать файл</a>
+          </div>
+        `
+        : "";
+      return `
+        <div class="preview-placeholder">
+          <strong>${escapeHtml(job.documentType)}</strong>
+          <span>${escapeHtml(job.fileName)}</span>
+          <small>${escapeHtml(message || originalFileHint(job.sourceContentType))}</small>
+          ${actions}
+        </div>
+      `;
+    }
+
     function renderPreview() {
       if (!activeJob) {
         previewPanel.classList.add("is-hidden");
@@ -853,17 +983,28 @@
 
       if (activeJob.previewUrl && activeJob.previewKind === "image") {
         const image = document.createElement("img");
+        const renderedJobId = activeJob.id;
         image.src = activeJob.previewUrl;
-        image.alt = `Локальный предпросмотр файла ${activeJob.fileName}`;
+        image.alt = `Предпросмотр файла ${activeJob.fileName}`;
+        image.addEventListener("error", () => {
+          if (!activeJob || activeJob.id !== renderedJobId) {
+            return;
+          }
+          mergeJob(renderedJobId, {
+            previewKind: "file",
+            previewUrl: "",
+          });
+          preview.innerHTML = renderPreviewPlaceholder(
+            activeJob,
+            "Предпросмотр недоступен. Файл можно открыть или скачать.",
+          );
+        });
         preview.replaceChildren(image);
       } else {
-        preview.innerHTML = `
-          <div class="preview-placeholder">
-            <strong>${escapeHtml(activeJob.documentType)}</strong>
-            <span>${escapeHtml(activeJob.fileName)}</span>
-            <small>Исторический предпросмотр будет доступен после безопасного viewer/download слоя.</small>
-          </div>
-        `;
+        preview.innerHTML = renderPreviewPlaceholder(
+          activeJob,
+          activeJob.fileUrl ? "" : "Оригинальный файл недоступен.",
+        );
       }
 
       const rows = [
@@ -929,6 +1070,7 @@
 
       copyButton.disabled = !activeJob || !activeJob.markdown;
       downloadButton.disabled = !activeJob || !activeJob.markdown;
+      deleteButton.disabled = !activeJob;
 
       if (!activeJob) {
         tabPanel.replaceChildren();
@@ -989,13 +1131,16 @@
         return;
       }
 
-      window.Stage19AJobs.renderJobList(jobList, jobs, activeJob && activeJob.id, selectJob);
+      window.Stage19AJobs.renderJobList(jobList, jobs, activeJob && activeJob.id, selectJob, deleteJobFromList);
     }
 
     function renderWorkspace() {
       renderPreview();
       renderJobList();
       workspaceGrid.classList.toggle("is-empty", !activeJob);
+      copyButton.disabled = !activeJob || !activeJob.markdown;
+      downloadButton.disabled = !activeJob || !activeJob.markdown;
+      deleteButton.disabled = !activeJob;
 
       if (!activeJob) {
         resultTitle.textContent = "Выберите файл";
@@ -1167,6 +1312,57 @@
       });
     }
 
+    function releaseJobPreview(job) {
+      if (job && job.ownsPreviewUrl && job.previewUrl) {
+        URL.revokeObjectURL(job.previewUrl);
+      }
+    }
+
+    function removeDeletedJob(jobId) {
+      const deletedJob = jobs.find((job) => job.id === jobId);
+      const wasActive = Boolean(activeJob && activeJob.id === jobId);
+      if (wasActive && pollingController) {
+        pollingController.abort();
+      }
+      if (deletedJob) {
+        releaseJobPreview(deletedJob);
+      }
+      if (wasActive) {
+        releaseJobPreview(activeJob);
+        activeJob = null;
+        activeTab = "summary";
+        selectionToken += 1;
+      }
+      jobs = jobs.filter((job) => job.id !== jobId);
+    }
+
+    async function deleteJob(job) {
+      if (!job) {
+        return;
+      }
+
+      const confirmed = await requestDeleteConfirmation();
+      if (!confirmed) {
+        return;
+      }
+
+      const wasActive = Boolean(activeJob && activeJob.id === job.id);
+      try {
+        const response = await apiClient.deleteJob(job.id);
+        removeDeletedJob(job.id);
+        jobsState = "loaded";
+        renderWorkspace();
+        showToast(response.deleted ? "Файл удалён" : "Файл уже удалён");
+        await loadJobs({ preserveActive: !wasActive });
+      } catch (error) {
+        showToast(error && error.message ? error.message : "Не удалось удалить файл");
+      }
+    }
+
+    function deleteJobFromList(job) {
+      deleteJob(job).catch(() => showToast("Не удалось удалить файл"));
+    }
+
     async function loadJobs(options) {
       if (historyController) {
         historyController.abort();
@@ -1245,6 +1441,10 @@
     }
 
     function closeWorkspace() {
+      if (isDeleteConfirmationOpen()) {
+        resolveDeleteConfirmation(false);
+      }
+
       if (pollingController) {
         pollingController.abort();
       }
@@ -1303,10 +1503,20 @@
     openJobsButton.addEventListener("click", openWithoutSelection);
     closeButton.addEventListener("click", closeWorkspace);
     backdrop.addEventListener("click", closeWorkspace);
+    deleteConfirmBackdrop.addEventListener("click", () => resolveDeleteConfirmation(false));
+    deleteConfirmCloseButton.addEventListener("click", () => resolveDeleteConfirmation(false));
+    deleteConfirmCancelButton.addEventListener("click", () => resolveDeleteConfirmation(false));
+    deleteConfirmSubmitButton.addEventListener("click", () => resolveDeleteConfirmation(true));
     copyButton.addEventListener("click", () => {
       copyMarkdown().catch(() => showToast("Не удалось скопировать Markdown"));
     });
     downloadButton.addEventListener("click", downloadMarkdown);
+    deleteButton.addEventListener("click", () => {
+      if (!activeJob) {
+        return;
+      }
+      deleteJob(activeJob).catch(() => showToast("Не удалось удалить файл"));
+    });
 
     tabButtons.forEach((button) => {
       button.addEventListener("click", () => {
@@ -1316,6 +1526,12 @@
     });
 
     document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && isDeleteConfirmationOpen()) {
+        event.preventDefault();
+        resolveDeleteConfirmation(false);
+        return;
+      }
+
       if (event.key === "Escape" && !overlay.classList.contains("is-hidden")) {
         closeWorkspace();
       }

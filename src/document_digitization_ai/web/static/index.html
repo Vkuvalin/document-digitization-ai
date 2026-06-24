@@ -212,9 +212,12 @@
                 <button type="button" role="tab" data-result-tab="raw">Текст</button>
                 <button type="button" role="tab" data-result-tab="markdown">Markdown</button>
               </div>
-              <div class="action-group">
-                <button class="button button-outline" type="button" id="copyMarkdownButton">Копировать Markdown</button>
-                <button class="button button-outline" type="button" id="downloadMarkdownButton">Скачать Markdown</button>
+              <div class="result-action-row">
+                <div class="action-group">
+                  <button class="button button-outline" type="button" id="copyMarkdownButton">Копировать Markdown</button>
+                  <button class="button button-outline" type="button" id="downloadMarkdownButton">Скачать Markdown</button>
+                </div>
+                <button class="button button-danger" type="button" id="deleteJobButton">Удалить</button>
               </div>
             </div>
             <div class="tab-panel" id="resultTabPanel" tabindex="0"></div>
@@ -229,6 +232,29 @@
           </div>
           <div class="job-list" id="workspaceJobList"></div>
         </aside>
+      </div>
+    </section>
+
+    <div class="modal-backdrop confirmation-backdrop is-hidden" id="deleteConfirmBackdrop" aria-hidden="true"></div>
+    <section
+      class="info-modal confirmation-modal is-hidden"
+      id="deleteConfirmModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="deleteConfirmTitle"
+      aria-describedby="deleteConfirmBody"
+    >
+      <div class="modal-header">
+        <div>
+          <p class="section-kicker">Подтверждение</p>
+          <h2 id="deleteConfirmTitle">Удалить файл?</h2>
+        </div>
+        <button class="icon-button" type="button" id="deleteConfirmCloseButton" aria-label="Закрыть">×</button>
+      </div>
+      <p id="deleteConfirmBody">Файл и результат анализа будут удалены. Это действие нельзя отменить.</p>
+      <div class="modal-actions confirmation-actions">
+        <button class="button button-outline" type="button" id="deleteConfirmCancelButton">Отмена</button>
+        <button class="button button-danger" type="button" id="deleteConfirmSubmitButton">Удалить</button>
       </div>
     </section>
 

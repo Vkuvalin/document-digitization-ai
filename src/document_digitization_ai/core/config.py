@@ -71,6 +71,7 @@ class StorageSettings(BaseModel):
     data_dir: Path
     uploads_dir: Path
     results_dir: Path
+    artifact_retention_days: int = Field(default=7, gt=0)
 
 
 class OpenRouterSettings(BaseModel):
@@ -237,6 +238,11 @@ class AppSettings(BaseSettings):
         default=Path("./data/results"),
         validation_alias="STORAGE_RESULTS_DIR",
     )
+    artifact_retention_days: int = Field(
+        default=7,
+        validation_alias="ARTIFACT_RETENTION_DAYS",
+        gt=0,
+    )
 
     openrouter_api_key: SecretStr = Field(
         default=SecretStr("change_me"),
@@ -361,6 +367,7 @@ class AppSettings(BaseSettings):
             data_dir=self.storage_data_dir,
             uploads_dir=self.storage_uploads_dir,
             results_dir=self.storage_results_dir,
+            artifact_retention_days=self.artifact_retention_days,
         )
 
     @property

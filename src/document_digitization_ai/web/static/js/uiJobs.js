@@ -59,7 +59,7 @@
     return `${count} предупреждений`;
   }
 
-  function renderJobList(container, jobs, activeJobId, onSelect) {
+  function renderJobList(container, jobs, activeJobId, onSelect, onDelete) {
     container.replaceChildren();
 
     if (!jobs.length) {
@@ -74,11 +74,28 @@
     }
 
     jobs.forEach((job) => {
-      const button = document.createElement("button");
-      button.className = "job-card";
-      button.type = "button";
-      button.classList.toggle("is-selected", job.id === activeJobId);
-      button.setAttribute("aria-pressed", String(job.id === activeJobId));
+      const card = document.createElement("article");
+      card.className = "job-card";
+      card.tabIndex = 0;
+      card.setAttribute("role", "button");
+      card.classList.toggle("is-selected", job.id === activeJobId);
+      card.setAttribute("aria-pressed", String(job.id === activeJobId));
+
+      if (onDelete) {
+        const deleteButton = document.createElement("button");
+        deleteButton.className = "job-card-delete";
+        deleteButton.type = "button";
+        deleteButton.setAttribute("aria-label", `Удалить ${job.fileName || "файл"}`);
+        deleteButton.textContent = "×";
+        deleteButton.addEventListener("click", (event) => {
+          event.stopPropagation();
+          onDelete(job);
+        });
+        deleteButton.addEventListener("keydown", (event) => {
+          event.stopPropagation();
+        });
+        card.appendChild(deleteButton);
+      }
 
       const header = document.createElement("div");
       header.className = "job-card-header";
@@ -104,9 +121,15 @@
       meta.className = "job-meta-row";
       meta.appendChild(createTextElement("span", "", formatWarningCount(job.warningCount || 0)));
 
-      button.append(header, meta);
-      button.addEventListener("click", () => onSelect(job));
-      container.appendChild(button);
+      card.append(header, meta);
+      card.addEventListener("click", () => onSelect(job));
+      card.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(job);
+        }
+      });
+      container.appendChild(card);
     });
   }
 

@@ -4,6 +4,7 @@
 
   const ERROR_MESSAGES = {
     artifact_access_denied: "Артефакт недоступен для просмотра.",
+    artifact_delete_failed: "Не удалось удалить сохранённые файлы.",
     artifact_not_found: "Артефакт не найден.",
     artifact_write_failed: "Не удалось подготовить файл результата.",
     internal_error: "Сервер не смог обработать запрос.",
@@ -200,10 +201,24 @@
     });
   }
 
+  function getJobPreviewUrl(jobId, options) {
+    const suffix = options && options.download ? "?download=true" : "";
+    return endpoint(`/jobs/${encodeURIComponent(jobId)}/preview${suffix}`);
+  }
+
+  function deleteJob(jobId, options) {
+    return requestJson(`/jobs/${encodeURIComponent(jobId)}`, {
+      method: "DELETE",
+      signal: options && options.signal,
+    });
+  }
+
   window.Stage19BApiClient = {
     ApiClientError,
+    deleteJob,
     getJobDetail,
     getJobMarkdown,
+    getJobPreviewUrl,
     getJobResult,
     getJobStatus,
     listJobs,

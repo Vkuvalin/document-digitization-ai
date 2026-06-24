@@ -401,6 +401,202 @@ async def test_facade_artifact_refs_are_relative_and_handle_missing_files(
 
 
 @pytest.mark.asyncio
+async def test_facade_preview_file_serves_only_safe_original_upload(
+    tmp_path: Path,
+) -> None:
+    source_image_path = tmp_path / "source.jpg"
+    _save_rgb_image(source_image_path)
+    application = LocalDocumentApplication(_app_settings(tmp_path))
+    facade = DocumentProcessingFacade(application)
+    try:
+        await facade.initialize_database()
+        submit = await facade.submit_document_from_path(source_image_path)
+        assert submit.job_id is not None
+
+        preview = await facade.get_job_preview_file(submit.job_id)
+        missing_job = await facade.get_job_preview_file("missing-job")
+
+        assert preview.error is None
+        assert preview.path is not None
+        assert preview.path.name == "original.jpg"
+        assert preview.path.is_file()
+        assert preview.filename == "original.jpg"
+        assert preview.content_type == "image/jpeg"
+        assert preview.supports_inline_preview is True
+        assert missing_job.error is not None
+        assert missing_job.error.error_type == "job_not_found"
+
+        original_upload = (
+            tmp_path / "data" / "uploads" / submit.job_id / "original.jpg"
+        )
+        original_upload.unlink()
+        missing_file = await facade.get_job_preview_file(submit.job_id)
+
+        assert missing_file.error is not None
+        assert missing_file.error.error_type == "artifact_not_found"
+        assert not _contains_absolute_path(missing_file.error.to_dict(), tmp_path)
+
+        outside_path = tmp_path / "outside.jpg"
+        _save_rgb_image(outside_path)
+        raw_artifact_path = (
+            tmp_path
+            / "data"
+            / "results"
+            / "jobs"
+            / "job-raw"
+            / "attempts"
+            / "001"
+            / "provider_sanitized_response.json"
+        )
+        raw_artifact_path.parent.mkdir(parents=True)
+        raw_artifact_path.write_text("{}", encoding="utf-8")
+        session_factory = create_async_session_factory(application.engine)
+        async with session_factory() as session:
+            repository = DocumentJobRepository(session)
+            outside_job = await repository.create_job(
+                DocumentModeHint.AUTO,
+                job_id="job-outside",
+            )
+            await repository.attach_uploaded_image_metadata(
+                outside_job.id,
+                source_image_path=str(outside_path),
+                mime_type="image/jpeg",
+                size_bytes=outside_path.stat().st_size,
+            )
+            raw_job = await repository.create_job(
+                DocumentModeHint.AUTO,
+                job_id="job-raw",
+            )
+            await repository.attach_uploaded_image_metadata(
+                raw_job.id,
+                source_image_path=str(raw_artifact_path),
+                mime_type="application/json",
+                size_bytes=raw_artifact_path.stat().st_size,
+            )
+            await session.commit()
+
+        outside_preview = await facade.get_job_preview_file("job-outside")
+        raw_preview = await facade.get_job_preview_file("job-raw")
+
+        assert outside_preview.error is not None
+        assert outside_preview.error.error_type == "artifact_access_denied"
+        assert raw_preview.error is not None
+        assert raw_preview.error.error_type == "artifact_access_denied"
+        assert not _contains_absolute_path(raw_preview.error.to_dict(), tmp_path)
+    finally:
+        await facade.close()
+
+
+@pytest.mark.asyncio
+async def test_facade_delete_job_removes_row_and_safe_artifact_dirs(
+    tmp_path: Path,
+) -> None:
+    source_image_path = tmp_path / "source.jpg"
+    _save_rgb_image(source_image_path)
+    application = LocalDocumentApplication(_app_settings(tmp_path))
+    facade = DocumentProcessingFacade(application)
+    try:
+        await facade.initialize_database()
+        submit = await facade.submit_document_from_path(source_image_path)
+        assert submit.job_id is not None
+        job_id = submit.job_id
+        upload_dir = tmp_path / "data" / "uploads" / job_id
+        result_dir = tmp_path / "data" / "results" / job_id
+        attempt_dir = tmp_path / "data" / "results" / "jobs" / job_id
+        outside_file = tmp_path / "outside-keep.txt"
+        result_dir.mkdir(parents=True, exist_ok=True)
+        attempt_dir.mkdir(parents=True, exist_ok=True)
+        (result_dir / "result.json").write_text("{}", encoding="utf-8")
+        (attempt_dir / "provider_sanitized_response.json").write_text(
+            "{}",
+            encoding="utf-8",
+        )
+        outside_file.write_text("keep", encoding="utf-8")
+
+        deleted = await facade.delete_job(job_id)
+        repeated = await facade.delete_job(job_id)
+        invalid = await facade.delete_job("../job")
+        history = await facade.list_jobs()
+        detail = await facade.get_job_detail(job_id)
+
+        assert deleted.error is None
+        assert deleted.deleted is True
+        assert deleted.artifacts_deleted >= 2
+        assert repeated.error is None
+        assert repeated.deleted is False
+        assert invalid.error is not None
+        assert invalid.error.error_type == "invalid_input"
+        assert history.total == 0
+        assert detail.error is not None
+        assert detail.error.error_type == "job_not_found"
+        assert not upload_dir.exists()
+        assert not result_dir.exists()
+        assert not attempt_dir.exists()
+        assert outside_file.read_text(encoding="utf-8") == "keep"
+    finally:
+        await facade.close()
+
+
+@pytest.mark.asyncio
+async def test_facade_retention_cleanup_deletes_only_expired_safe_jobs(
+    tmp_path: Path,
+) -> None:
+    application = LocalDocumentApplication(_app_settings(tmp_path))
+    facade = DocumentProcessingFacade(application)
+    now = datetime(2026, 6, 23, tzinfo=UTC)
+    old_created_at = datetime(2026, 6, 10, tzinfo=UTC)
+    recent_created_at = datetime(2026, 6, 20, tzinfo=UTC)
+    outside_file = tmp_path / "outside-retention.txt"
+    outside_file.write_text("keep", encoding="utf-8")
+    try:
+        await facade.initialize_database()
+        session_factory = create_async_session_factory(application.engine)
+        async with session_factory() as session:
+            repository = DocumentJobRepository(session)
+            old_job = await repository.create_job(
+                DocumentModeHint.AUTO,
+                job_id="job-old",
+            )
+            old_job.created_at = old_created_at
+            old_job.updated_at = old_created_at
+            recent_job = await repository.create_job(
+                DocumentModeHint.AUTO,
+                job_id="job-recent",
+            )
+            recent_job.created_at = recent_created_at
+            recent_job.updated_at = recent_created_at
+            outside_job = await repository.create_job(
+                DocumentModeHint.AUTO,
+                job_id="job-outside",
+            )
+            outside_job.created_at = old_created_at
+            outside_job.updated_at = old_created_at
+            outside_job.source_image_path = str(outside_file)
+            await session.commit()
+
+        for job_id in ("job-old", "job-recent"):
+            (tmp_path / "data" / "uploads" / job_id).mkdir(parents=True)
+            (tmp_path / "data" / "results" / "jobs" / job_id).mkdir(parents=True)
+
+        cleanup = await facade.cleanup_expired_jobs(now=now)
+        history = await facade.list_jobs()
+        remaining_ids = {job.job_id for job in history.jobs}
+
+        assert cleanup.error is None
+        assert cleanup.retention_days == 7
+        assert cleanup.jobs_deleted == 2
+        assert cleanup.cutoff_at == datetime(2026, 6, 16, tzinfo=UTC)
+        assert remaining_ids == {"job-recent"}
+        assert not (tmp_path / "data" / "uploads" / "job-old").exists()
+        assert not (tmp_path / "data" / "results" / "jobs" / "job-old").exists()
+        assert (tmp_path / "data" / "uploads" / "job-recent").is_dir()
+        assert (tmp_path / "data" / "results" / "jobs" / "job-recent").is_dir()
+        assert outside_file.read_text(encoding="utf-8") == "keep"
+    finally:
+        await facade.close()
+
+
+@pytest.mark.asyncio
 async def test_facade_markdown_write_failure_is_safe(tmp_path: Path) -> None:
     source_image_path = tmp_path / "source.jpg"
     _save_rgb_image(source_image_path)

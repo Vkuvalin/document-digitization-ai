@@ -19,6 +19,7 @@ _ERROR_STATUS_CODES = {
     "unsupported_file": 415,
     "too_large_upload": 413,
     "artifact_access_denied": 403,
+    "artifact_delete_failed": 500,
     "artifact_not_found": 404,
     "artifact_write_failed": 500,
     "malformed_result_payload": 500,
@@ -27,6 +28,7 @@ _ERROR_STATUS_CODES = {
 
 _GENERIC_INTERNAL_MESSAGES = {
     "artifact_access_denied": "Artifact access denied.",
+    "artifact_delete_failed": "Artifact could not be deleted.",
     "artifact_not_found": "Artifact was not found.",
     "artifact_write_failed": "Artifact could not be written.",
     "malformed_result_payload": "Result payload could not be returned.",

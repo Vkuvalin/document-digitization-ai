@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import datetime
 from uuid import uuid4
 
 from sqlalchemy import func, select
@@ -93,6 +94,26 @@ class DocumentJobRepository:
             statement = statement.where(DocumentJob.status == status)
         count = await self._session.scalar(statement)
         return int(count or 0)
+
+    async def list_jobs_created_before(
+        self,
+        cutoff: datetime,
+    ) -> tuple[DocumentJob, ...]:
+        statement = (
+            select(DocumentJob)
+            .where(DocumentJob.created_at < cutoff)
+            .order_by(DocumentJob.created_at.asc(), DocumentJob.id.asc())
+        )
+        jobs = await self._session.scalars(statement)
+        return tuple(jobs.all())
+
+    async def delete_job(self, job_id: str) -> bool:
+        job = await self.get_job(job_id)
+        if job is None:
+            return False
+        await self._session.delete(job)
+        await self._session.flush()
+        return True
 
     async def update_status(
         self,

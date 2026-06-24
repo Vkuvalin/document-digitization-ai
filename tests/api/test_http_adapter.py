@@ -13,10 +13,12 @@ from document_digitization_ai.application import (
     ArtifactReference,
     AttemptSummary,
     BackendErrorView,
+    DeleteJobView,
     DocumentProcessingFacade,
     ExtractionResultView,
     JobDetailView,
     JobHistoryView,
+    JobPreviewFileView,
     JobStatusView,
     JobSummary,
     MarkdownExportView,
@@ -39,6 +41,7 @@ def test_create_app_registers_routes_and_uses_injected_facade(tmp_path: Path) ->
         "/documents",
         "/jobs",
         "/jobs/{job_id}",
+        "/jobs/{job_id}/preview",
         "/jobs/{job_id}/status",
         "/jobs/{job_id}/result",
         "/jobs/{job_id}/markdown",
@@ -67,6 +70,7 @@ def test_web_ui_static_serving_under_app_keeps_api_routes_clean(
     app_script = client.get("/app/js/app.js")
     api_client_script = client.get("/app/js/apiClient.js")
     result_dialog_script = client.get("/app/js/uiResultDialog.js")
+    jobs_script = client.get("/app/js/uiJobs.js")
     root = client.get("/")
     health = client.get("/health")
 
@@ -82,10 +86,15 @@ def test_web_ui_static_serving_under_app_keeps_api_routes_clean(
     assert api_client_script.status_code == 200
     assert "Stage19BApiClient" in api_client_script.text
     assert "localhost" not in api_client_script.text
+    assert "getJobPreviewUrl" in api_client_script.text
+    assert "`/jobs/${encodeURIComponent(jobId)}/preview" in api_client_script.text
+    assert "deleteJob" in api_client_script.text
+    assert "imgbb" not in api_client_script.text.lower()
     assert result_dialog_script.status_code == 200
     assert 'VALIDATION_PARTIAL: "Частичная проверка"' in result_dialog_script.text
     assert 'en: "Английский"' in result_dialog_script.text
     assert "Значения" in app_slash.text
+    assert 'id="deleteJobButton"' in app_slash.text
     assert "Поля вне таблиц" in result_dialog_script.text
     assert "Значения из таблиц" in result_dialog_script.text
     assert "derived_table_facts" in result_dialog_script.text
@@ -100,9 +109,27 @@ def test_web_ui_static_serving_under_app_keeps_api_routes_clean(
     assert "original\\." in result_dialog_script.text
     assert "derived-fact-card" in result_dialog_script.text
     assert "table-section" in result_dialog_script.text
+    assert "originalInputArtifact" in result_dialog_script.text
+    assert "provider_sanitized_response" not in result_dialog_script.text
+    assert "window.confirm" not in result_dialog_script.text
+    assert 'id="deleteConfirmModal"' in app_slash.text
+    assert "Удалить файл?" in app_slash.text
+    assert "Файл и результат анализа будут удалены" in app_slash.text
+    assert "Открыть файл" in result_dialog_script.text
+    assert "imgbb" not in result_dialog_script.text.lower()
+    assert jobs_script.status_code == 200
+    assert "job-card-delete" in jobs_script.text
+    assert "event.stopPropagation()" in jobs_script.text
     assert "flex-wrap: nowrap;" in stylesheet.text
+    assert "flex: 1 0 auto;" in stylesheet.text
+    assert "min-width: max-content;" in stylesheet.text
     assert ".workspace-files-panel .job-card" in stylesheet.text
-    assert "min-height: 174px;" in stylesheet.text
+    assert ".button-danger" in stylesheet.text
+    assert ".result-action-row" in stylesheet.text
+    assert ".job-card-delete" in stylesheet.text
+    assert "display: inline-flex;" in stylesheet.text
+    assert ".confirmation-modal" in stylesheet.text
+    assert "min-height: 154px;" in stylesheet.text
     assert "overflow: hidden;" in stylesheet.text
     assert ".derived-fact-grid" in stylesheet.text
     assert ".table-section + .table-section" in stylesheet.text
@@ -182,10 +209,23 @@ def test_upload_endpoint_rejects_empty_missing_too_large_and_unsafe_uploads(
 
 def test_job_endpoints_delegate_to_facade(tmp_path: Path) -> None:
     facade = FakeDocumentFacade()
+    preview_file = tmp_path / "preview.jpg"
+    preview_file.write_bytes(b"preview-bytes")
+    facade.preview_response = JobPreviewFileView(
+        job_id="job-001",
+        path=preview_file,
+        filename="original.jpg",
+        content_type="image/jpeg",
+        size_bytes=preview_file.stat().st_size,
+        supports_inline_preview=True,
+    )
     client = _client(tmp_path, facade)
 
     history = client.get("/jobs", params={"limit": 10, "offset": 2, "status": "created"})
     detail = client.get("/jobs/job-001")
+    preview = client.get("/jobs/job-001/preview")
+    preview_download = client.get("/jobs/job-001/preview?download=true")
+    delete = client.delete("/jobs/job-001")
     status = client.get("/jobs/job-001/status")
     result = client.get("/jobs/job-001/result")
     markdown = client.get("/jobs/job-001/markdown")
@@ -196,6 +236,14 @@ def test_job_endpoints_delegate_to_facade(tmp_path: Path) -> None:
     assert history.json()["jobs"][0]["job_id"] == "job-001"
     assert detail.status_code == 200
     assert detail.json()["summary"]["job_id"] == "job-001"
+    assert preview.status_code == 200
+    assert preview.content == b"preview-bytes"
+    assert "image/jpeg" in preview.headers["content-type"]
+    assert "inline" in preview.headers["content-disposition"]
+    assert preview_download.status_code == 200
+    assert "attachment" in preview_download.headers["content-disposition"]
+    assert delete.status_code == 200
+    assert delete.json()["deleted"] is True
     assert status.status_code == 200
     assert status.json()["status"] == "result_ready"
     assert result.status_code == 200
@@ -213,6 +261,9 @@ def test_job_endpoints_delegate_to_facade(tmp_path: Path) -> None:
     assert facade.calls == [
         ("list_jobs", 10, 2, "created"),
         ("get_job_detail", "job-001"),
+        ("get_job_preview_file", "job-001"),
+        ("get_job_preview_file", "job-001"),
+        ("delete_job", "job-001"),
         ("get_job_status", "job-001"),
         ("get_extraction_result", "job-001"),
         ("get_result_markdown", "job-001", False),
@@ -250,6 +301,15 @@ def test_error_mapping_is_safe_and_result_unavailable_stays_normal(
         artifacts=(),
         error=_error("artifact_access_denied", "Artifact access denied."),
     )
+    facade.preview_response = JobPreviewFileView(
+        job_id="job-001",
+        error=_error("artifact_access_denied", r"C:\Users\User\secret\original.jpg"),
+    )
+    facade.delete_response = DeleteJobView(
+        job_id="job-001",
+        deleted=False,
+        error=_error("artifact_delete_failed", r"C:\Users\User\secret\original.jpg"),
+    )
     facade.result_response = ExtractionResultView(
         job_id="job-001",
         result_available=False,
@@ -267,6 +327,8 @@ def test_error_mapping_is_safe_and_result_unavailable_stays_normal(
         files={"file": ("upload.tiff", b"image-bytes", "image/tiff")},
     )
     denied = client.get("/jobs/job-001/artifacts")
+    preview_denied = client.get("/jobs/job-001/preview")
+    delete_failed = client.delete("/jobs/job-001")
     unavailable = client.get("/jobs/job-001/result")
 
     assert missing.status_code == 404
@@ -277,6 +339,18 @@ def test_error_mapping_is_safe_and_result_unavailable_stays_normal(
     assert unsupported.json()["error_type"] == "unsupported_file"
     assert denied.status_code == 403
     assert denied.json()["error_type"] == "artifact_access_denied"
+    assert preview_denied.status_code == 403
+    assert preview_denied.json() == {
+        "error_type": "artifact_access_denied",
+        "error_message": "Artifact access denied.",
+    }
+    assert r"C:\Users" not in str(preview_denied.json())
+    assert delete_failed.status_code == 500
+    assert delete_failed.json() == {
+        "error_type": "artifact_delete_failed",
+        "error_message": "Artifact could not be deleted.",
+    }
+    assert r"C:\Users" not in str(delete_failed.json())
     assert unavailable.status_code == 200
     assert unavailable.json()["result_available"] is False
     assert unavailable.json()["error"]["error_type"] == "result_unavailable"
@@ -473,6 +547,15 @@ class FakeDocumentFacade:
             job_id="job-001",
             artifacts=(artifact,),
         )
+        self.preview_response = JobPreviewFileView(
+            job_id="job-001",
+            error=_error("artifact_not_found", "Original uploaded file was not found."),
+        )
+        self.delete_response = DeleteJobView(
+            job_id="job-001",
+            deleted=True,
+            artifacts_deleted=2,
+        )
         self.raise_on_status: Exception | None = None
 
     async def submit_document_file(
@@ -511,6 +594,14 @@ class FakeDocumentFacade:
     async def get_job_detail(self, job_id: str) -> JobDetailView:
         self.calls.append(("get_job_detail", job_id))
         return self.detail_response
+
+    async def get_job_preview_file(self, job_id: str) -> JobPreviewFileView:
+        self.calls.append(("get_job_preview_file", job_id))
+        return self.preview_response
+
+    async def delete_job(self, job_id: str) -> DeleteJobView:
+        self.calls.append(("delete_job", job_id))
+        return self.delete_response
 
     async def get_job_status(self, job_id: str) -> JobStatusView:
         self.calls.append(("get_job_status", job_id))

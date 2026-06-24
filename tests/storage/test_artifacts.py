@@ -8,6 +8,7 @@ from document_digitization_ai.storage import (
     ArtifactLayoutError,
     JobArtifactLayout,
     MarkdownExportArtifactLayout,
+    delete_artifact_tree,
 )
 
 
@@ -116,3 +117,22 @@ def test_markdown_export_artifact_layout_rejects_unsafe_job_id(
 
     with pytest.raises(ArtifactLayoutError):
         layout.relative_path("../job")
+
+
+def test_delete_artifact_tree_stays_inside_root(tmp_path: Path) -> None:
+    root = tmp_path / "artifacts"
+    target_dir = root / "jobs" / "job-006"
+    target_file = target_dir / "result.md"
+    outside_file = tmp_path / "outside.md"
+    target_dir.mkdir(parents=True)
+    target_file.write_text("# Result\n", encoding="utf-8")
+    outside_file.write_text("keep", encoding="utf-8")
+
+    deleted = delete_artifact_tree(root, "jobs/job-006")
+
+    assert deleted.deleted is True
+    assert deleted.relative_path == "jobs/job-006"
+    assert not target_dir.exists()
+    assert outside_file.read_text(encoding="utf-8") == "keep"
+    with pytest.raises(ArtifactLayoutError):
+        delete_artifact_tree(root, "../outside.md")

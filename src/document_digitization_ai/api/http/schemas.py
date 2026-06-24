@@ -9,6 +9,7 @@ from document_digitization_ai.application import (
     ArtifactReference,
     AttemptSummary,
     BackendErrorView,
+    DeleteJobView,
     ExtractionResultView,
     JobDetailView,
     JobHistoryView,
@@ -54,6 +55,18 @@ class SubmitDocumentResponse(ApiModel):
 
     @classmethod
     def from_view(cls, view: SubmitDocumentResult) -> SubmitDocumentResponse:
+        return cls.model_validate(view.to_dict())
+
+
+class DeleteJobResponse(ApiModel):
+    job_id: str
+    deleted: bool
+    artifacts_deleted: int
+    unsafe_artifacts_skipped: int
+    error: ApiErrorResponse | None = None
+
+    @classmethod
+    def from_view(cls, view: DeleteJobView) -> DeleteJobResponse:
         return cls.model_validate(view.to_dict())
 
 
@@ -173,4 +186,3 @@ class ArtifactListResponse(ApiModel):
     @classmethod
     def from_view(cls, view: ArtifactListView) -> ArtifactListResponse:
         return cls.model_validate(view.to_dict())
-

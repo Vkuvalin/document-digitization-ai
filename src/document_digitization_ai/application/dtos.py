@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
+from pathlib import Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +36,55 @@ class ArtifactReference:
             "content_type": self.content_type,
             "size_bytes": self.size_bytes,
             "created_at": _datetime_to_dict(self.created_at),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class JobPreviewFileView:
+    job_id: str
+    path: Path | None = None
+    filename: str | None = None
+    content_type: str | None = None
+    size_bytes: int | None = None
+    supports_inline_preview: bool = False
+    error: BackendErrorView | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DeleteJobView:
+    job_id: str
+    deleted: bool
+    artifacts_deleted: int = 0
+    unsafe_artifacts_skipped: int = 0
+    error: BackendErrorView | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "job_id": self.job_id,
+            "deleted": self.deleted,
+            "artifacts_deleted": self.artifacts_deleted,
+            "unsafe_artifacts_skipped": self.unsafe_artifacts_skipped,
+            "error": _error_to_dict(self.error),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class RetentionCleanupView:
+    retention_days: int
+    cutoff_at: datetime
+    jobs_deleted: int
+    artifacts_deleted: int
+    unsafe_artifacts_skipped: int = 0
+    error: BackendErrorView | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "retention_days": self.retention_days,
+            "cutoff_at": _datetime_to_dict(self.cutoff_at),
+            "jobs_deleted": self.jobs_deleted,
+            "artifacts_deleted": self.artifacts_deleted,
+            "unsafe_artifacts_skipped": self.unsafe_artifacts_skipped,
+            "error": _error_to_dict(self.error),
         }
 
 
