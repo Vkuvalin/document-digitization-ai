@@ -11,6 +11,7 @@ from document_digitization_ai.application.dtos import (
     JobStatusView as JobStatusView,
     JobSummary as JobSummary,
     MarkdownExportView as MarkdownExportView,
+    PdfExportView as PdfExportView,
     RetentionCleanupView as RetentionCleanupView,
     SubmitDocumentResult as SubmitDocumentResult,
 )
@@ -36,6 +37,7 @@ __all__ = [
     "JobSummary",
     "LocalDocumentApplication",
     "MarkdownExportView",
+    "PdfExportView",
     "RetentionCleanupView",
     "SubmitDocumentResult",
 ]

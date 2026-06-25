@@ -22,6 +22,7 @@ from document_digitization_ai.application import (
     JobStatusView,
     JobSummary,
     MarkdownExportView,
+    PdfExportView,
     SubmitDocumentResult,
 )
 from document_digitization_ai.core import AppSettings
@@ -46,6 +47,7 @@ def test_create_app_registers_routes_and_uses_injected_facade(tmp_path: Path) ->
         "/jobs/{job_id}/result",
         "/jobs/{job_id}/markdown",
         "/jobs/{job_id}/markdown/export",
+        "/jobs/{job_id}/pdf",
         "/jobs/{job_id}/artifacts",
         "/health",
     }.issubset(app.openapi()["paths"])
@@ -71,6 +73,7 @@ def test_web_ui_static_serving_under_app_keeps_api_routes_clean(
     api_client_script = client.get("/app/js/apiClient.js")
     result_dialog_script = client.get("/app/js/uiResultDialog.js")
     jobs_script = client.get("/app/js/uiJobs.js")
+    upload_script = client.get("/app/js/uiUpload.js")
     root = client.get("/")
     health = client.get("/health")
 
@@ -89,6 +92,8 @@ def test_web_ui_static_serving_under_app_keeps_api_routes_clean(
     assert "getJobPreviewUrl" in api_client_script.text
     assert "`/jobs/${encodeURIComponent(jobId)}/preview" in api_client_script.text
     assert "deleteJob" in api_client_script.text
+    assert "getJobPdf" in api_client_script.text
+    assert "`/jobs/${encodeURIComponent(jobId)}/pdf" in api_client_script.text
     assert "imgbb" not in api_client_script.text.lower()
     assert result_dialog_script.status_code == 200
     assert 'VALIDATION_PARTIAL: "Частичная проверка"' in result_dialog_script.text
@@ -114,12 +119,24 @@ def test_web_ui_static_serving_under_app_keeps_api_routes_clean(
     assert "window.confirm" not in result_dialog_script.text
     assert 'id="deleteConfirmModal"' in app_slash.text
     assert "Удалить файл?" in app_slash.text
+    assert "Скачать PDF" in app_slash.text
     assert "Файл и результат анализа будут удалены" in app_slash.text
+    assert "Формат вывода" not in app_slash.text
+    assert 'id="outputFormat"' not in app_slash.text
+    assert "Показывать предупреждения" in app_slash.text
+    assert "Показывать исходный текст" in app_slash.text
+    assert "Восстановление макета" in app_slash.text
     assert "Открыть файл" in result_dialog_script.text
+    assert "downloadPdf" in result_dialog_script.text
+    assert "Не удалось скачать PDF" in result_dialog_script.text
+    assert "URL.revokeObjectURL(existingPreviewUrl)" in result_dialog_script.text
     assert "imgbb" not in result_dialog_script.text.lower()
     assert jobs_script.status_code == 200
     assert "job-card-delete" in jobs_script.text
     assert "event.stopPropagation()" in jobs_script.text
+    assert upload_script.status_code == 200
+    assert "clearSelectedFile({ force: true })" in upload_script.text
+    assert 'fileInput.value = "";' in upload_script.text
     assert "flex-wrap: nowrap;" in stylesheet.text
     assert "flex: 1 0 auto;" in stylesheet.text
     assert "min-width: max-content;" in stylesheet.text
@@ -230,6 +247,7 @@ def test_job_endpoints_delegate_to_facade(tmp_path: Path) -> None:
     result = client.get("/jobs/job-001/result")
     markdown = client.get("/jobs/job-001/markdown")
     markdown_export = client.post("/jobs/job-001/markdown/export")
+    pdf = client.get("/jobs/job-001/pdf")
     artifacts = client.get("/jobs/job-001/artifacts")
 
     assert history.status_code == 200
@@ -254,6 +272,10 @@ def test_job_endpoints_delegate_to_facade(tmp_path: Path) -> None:
     assert markdown_export.json()["artifact"]["relative_path"] == (
         "jobs/job-001/exports/result.md"
     )
+    assert pdf.status_code == 200
+    assert pdf.content == b"%PDF-test"
+    assert "application/pdf" in pdf.headers["content-type"]
+    assert 'filename="analysis_job-001.pdf"' in pdf.headers["content-disposition"]
     assert artifacts.status_code == 200
     assert artifacts.json()["artifacts"][0]["relative_path"] == (
         "jobs/job-001/exports/result.md"
@@ -268,6 +290,7 @@ def test_job_endpoints_delegate_to_facade(tmp_path: Path) -> None:
         ("get_extraction_result", "job-001"),
         ("get_result_markdown", "job-001", False),
         ("get_result_markdown", "job-001", True),
+        ("get_result_pdf", "job-001"),
         ("get_job_artifacts", "job-001"),
     ]
 
@@ -318,6 +341,14 @@ def test_error_mapping_is_safe_and_result_unavailable_stays_normal(
             "Document job does not have an extraction result.",
         ),
     )
+    facade.pdf_response = PdfExportView(
+        job_id="job-001",
+        result_available=False,
+        error=_error(
+            "result_unavailable",
+            "Document job does not have an extraction result.",
+        ),
+    )
     client = _client(tmp_path, facade)
 
     missing = client.get("/jobs/missing")
@@ -330,6 +361,7 @@ def test_error_mapping_is_safe_and_result_unavailable_stays_normal(
     preview_denied = client.get("/jobs/job-001/preview")
     delete_failed = client.delete("/jobs/job-001")
     unavailable = client.get("/jobs/job-001/result")
+    pdf_unavailable = client.get("/jobs/job-001/pdf")
 
     assert missing.status_code == 404
     assert missing.json()["error_type"] == "job_not_found"
@@ -354,6 +386,9 @@ def test_error_mapping_is_safe_and_result_unavailable_stays_normal(
     assert unavailable.status_code == 200
     assert unavailable.json()["result_available"] is False
     assert unavailable.json()["error"]["error_type"] == "result_unavailable"
+    assert pdf_unavailable.status_code == 409
+    assert pdf_unavailable.json()["error_type"] == "result_unavailable"
+    assert r"C:\Users" not in str(pdf_unavailable.json())
 
 
 def test_not_found_and_internal_error_mapping_are_safe(tmp_path: Path) -> None:
@@ -363,16 +398,25 @@ def test_not_found_and_internal_error_mapping_are_safe(tmp_path: Path) -> None:
         artifacts=(),
         error=_error("artifact_not_found", r"C:\Users\User\secret\artifact.json"),
     )
+    facade.pdf_response = PdfExportView(
+        job_id="missing",
+        result_available=False,
+        error=_error("job_not_found", "Document job was not found."),
+    )
     facade.raise_on_status = RuntimeError(r"C:\Users\User\.env OPENROUTER_API_KEY=secret")
     client = _client(tmp_path, facade)
 
     missing_artifact = client.get("/jobs/job-001/artifacts")
+    missing_pdf = client.get("/jobs/missing/pdf")
     internal_error = client.get("/jobs/job-001/status")
 
     assert missing_artifact.status_code == 404
     assert missing_artifact.json()["error_type"] == "artifact_not_found"
     assert missing_artifact.json()["error_message"] == "Artifact was not found."
     assert r"C:\Users" not in str(missing_artifact.json())
+    assert missing_pdf.status_code == 404
+    assert missing_pdf.json()["error_type"] == "job_not_found"
+    assert r"C:\Users" not in str(missing_pdf.json())
     assert internal_error.status_code == 500
     assert internal_error.json() == {
         "error_type": "internal_error",
@@ -543,6 +587,12 @@ class FakeDocumentFacade:
             markdown="# Result\n",
             artifact=artifact,
         )
+        self.pdf_response = PdfExportView(
+            job_id="job-001",
+            result_available=True,
+            pdf=b"%PDF-test",
+            filename="analysis_job-001.pdf",
+        )
         self.artifacts_response = ArtifactListView(
             job_id="job-001",
             artifacts=(artifact,),
@@ -623,6 +673,10 @@ class FakeDocumentFacade:
         if write_artifact:
             return self.markdown_export_response
         return self.markdown_read_response
+
+    async def get_result_pdf(self, job_id: str) -> PdfExportView:
+        self.calls.append(("get_result_pdf", job_id))
+        return self.pdf_response
 
     async def get_job_artifacts(self, job_id: str) -> ArtifactListView:
         self.calls.append(("get_job_artifacts", job_id))

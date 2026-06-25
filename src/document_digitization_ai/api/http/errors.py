@@ -23,6 +23,7 @@ _ERROR_STATUS_CODES = {
     "artifact_not_found": 404,
     "artifact_write_failed": 500,
     "malformed_result_payload": 500,
+    "result_unavailable": 409,
     "internal_error": 500,
 }
 

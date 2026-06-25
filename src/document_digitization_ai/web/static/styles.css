@@ -557,6 +557,10 @@ select:focus-visible,
   font-weight: 700;
 }
 
+.settings-grid .setting-row.is-disabled {
+  grid-column: 1 / -1;
+}
+
 .setting-row span,
 .switch-row span {
   min-width: 0;

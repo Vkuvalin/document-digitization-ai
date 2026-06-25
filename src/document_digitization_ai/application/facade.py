@@ -20,6 +20,7 @@ from document_digitization_ai.application.dtos import (
     JobStatusView,
     JobSummary,
     MarkdownExportView,
+    PdfExportView,
     RetentionCleanupView,
     SubmitDocumentResult,
 )
@@ -407,6 +408,27 @@ class DocumentProcessingFacade:
             result_available=True,
             markdown=result.markdown,
             artifact=artifact,
+        )
+
+    async def get_result_pdf(self, job_id: str) -> PdfExportView:
+        result = await self._application.export_result_pdf(job_id)
+        if not result.result_available:
+            return PdfExportView(
+                job_id=result.job_id,
+                result_available=False,
+                error=BackendErrorView(
+                    error_type=result.error_type or "result_unavailable",
+                    error_message=(
+                        result.error_message
+                        or "Document job does not have an extraction result."
+                    ),
+                ),
+            )
+        return PdfExportView(
+            job_id=result.job_id,
+            result_available=True,
+            pdf=result.pdf,
+            filename=result.filename,
         )
 
     async def get_job_artifacts(self, job_id: str) -> ArtifactListView:

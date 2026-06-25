@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
+import pymupdf
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -75,6 +77,48 @@ async def test_export_job_result_markdown_renders_without_artifact_or_status_mut
 
 
 @pytest.mark.asyncio
+async def test_export_job_result_pdf_renders_without_artifact_or_status_mutation(
+    tmp_path: Path,
+) -> None:
+    engine, session_factory = await _session_factory(tmp_path, "pdf-export-success.db")
+    job_id = "job-pdf"
+    try:
+        await _persist_job_with_result(session_factory, job_id)
+
+        async with session_factory() as session:
+            service = _export_service(session)
+            result = await service.export_job_result_pdf(job_id)
+
+        async with session_factory() as session:
+            persisted_job = await session.get(DocumentJob, job_id)
+
+        assert result.result_available is True
+        assert result.pdf is not None
+        assert result.pdf.startswith(b"%PDF")
+        assert result.filename == "analysis_job-pdf.pdf"
+        text = _pdf_text(result.pdf)
+        assert "Результат анализа" in text
+        assert "Проверка пройдена" in text
+        assert "Persisted text" in text
+        assert "Extraction Metadata" not in text
+        assert "Provider" not in text
+        assert "openai/test-vision" not in text
+        assert persisted_job is not None
+        assert persisted_job.status is JobStatus.RESULT_READY
+        assert not (
+            tmp_path
+            / "data"
+            / "results"
+            / "jobs"
+            / job_id
+            / "exports"
+            / "result.pdf"
+        ).exists()
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_export_job_result_markdown_handles_job_not_found(tmp_path: Path) -> None:
     engine, session_factory = await _session_factory(tmp_path, "not-found.db")
     try:
@@ -86,6 +130,21 @@ async def test_export_job_result_markdown_handles_job_not_found(tmp_path: Path) 
         assert result.result_available is False
         assert result.error_type == "job_not_found"
         assert result.markdown is None
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_export_job_result_pdf_handles_job_not_found(tmp_path: Path) -> None:
+    engine, session_factory = await _session_factory(tmp_path, "pdf-not-found.db")
+    try:
+        async with session_factory() as session:
+            result = await _export_service(session).export_job_result_pdf("missing-job")
+
+        assert result.result_available is False
+        assert result.error_type == "job_not_found"
+        assert result.pdf is None
+        assert result.filename is None
     finally:
         await engine.dispose()
 
@@ -114,6 +173,30 @@ async def test_export_job_result_markdown_handles_job_without_result(
 
 
 @pytest.mark.asyncio
+async def test_export_job_result_pdf_handles_job_without_result(
+    tmp_path: Path,
+) -> None:
+    engine, session_factory = await _session_factory(tmp_path, "pdf-without-result.db")
+    job_id = "job-pdf-without-result"
+    try:
+        async with session_factory() as session:
+            repository = DocumentJobRepository(session)
+            job = await repository.create_job(DocumentModeHint.AUTO, job_id=job_id)
+            job.status = JobStatus.FAILED
+            await session.commit()
+
+        async with session_factory() as session:
+            result = await _export_service(session).export_job_result_pdf(job_id)
+
+        assert result.result_available is False
+        assert result.error_type == "result_unavailable"
+        assert result.pdf is None
+        assert result.filename is None
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_export_job_result_markdown_handles_malformed_payload(
     tmp_path: Path,
 ) -> None:
@@ -133,6 +216,31 @@ async def test_export_job_result_markdown_handles_malformed_payload(
         assert result.result_available is False
         assert result.error_type == "malformed_result_payload"
         assert result.markdown is None
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_export_job_result_pdf_handles_malformed_payload(
+    tmp_path: Path,
+) -> None:
+    engine, session_factory = await _session_factory(tmp_path, "pdf-malformed.db")
+    job_id = "job-pdf-malformed"
+    try:
+        async with session_factory() as session:
+            repository = DocumentJobRepository(session)
+            job = await repository.create_job(DocumentModeHint.AUTO, job_id=job_id)
+            job.status = JobStatus.RESULT_READY
+            job.extraction_result_payload = {"document": {}}
+            await session.commit()
+
+        async with session_factory() as session:
+            result = await _export_service(session).export_job_result_pdf(job_id)
+
+        assert result.result_available is False
+        assert result.error_type == "malformed_result_payload"
+        assert result.pdf is None
+        assert result.filename is None
     finally:
         await engine.dispose()
 
@@ -206,6 +314,14 @@ def _export_service(
         repository=DocumentJobRepository(session),
         attempt_repository=ExtractionAttemptRepository(session),
     )
+
+
+def _pdf_text(pdf: bytes) -> str:
+    document = pymupdf.open(stream=pdf, filetype="pdf")
+    try:
+        return "\n".join(cast(str, page.get_text()) for page in document)
+    finally:
+        document.close()
 
 
 async def _persist_job_with_result(

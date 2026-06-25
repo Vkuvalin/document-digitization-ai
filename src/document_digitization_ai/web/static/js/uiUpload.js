@@ -52,8 +52,9 @@
       previewFrame.innerHTML = "<span>Предпросмотр</span>";
     }
 
-    function clearSelectedFile() {
-      if (isSubmitting) {
+    function clearSelectedFile(options) {
+      const force = Boolean(options && options.force);
+      if (isSubmitting && !force) {
         return;
       }
 
@@ -153,6 +154,7 @@
           submit: submitResponse,
           upload: uploadContext,
         });
+        clearSelectedFile({ force: true });
       } catch (error) {
         if (uploadContext.previewUrl) {
           URL.revokeObjectURL(uploadContext.previewUrl);

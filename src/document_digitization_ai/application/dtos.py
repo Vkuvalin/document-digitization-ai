@@ -300,6 +300,15 @@ class MarkdownExportView:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class PdfExportView:
+    job_id: str
+    result_available: bool
+    pdf: bytes | None = None
+    filename: str | None = None
+    error: BackendErrorView | None = None
+
+
 def _datetime_to_dict(value: datetime | None) -> str | None:
     return None if value is None else value.isoformat()
 

@@ -640,6 +640,7 @@
     const tabButtons = Array.from(document.querySelectorAll("[data-result-tab]"));
     const copyButton = document.getElementById("copyMarkdownButton");
     const downloadButton = document.getElementById("downloadMarkdownButton");
+    const pdfButton = document.getElementById("downloadPdfButton");
     const deleteButton = document.getElementById("deleteJobButton");
     const deleteConfirmBackdrop = document.getElementById("deleteConfirmBackdrop");
     const deleteConfirmModal = document.getElementById("deleteConfirmModal");
@@ -864,18 +865,24 @@
       );
       const backendPreviewUrl = originalExists ? apiClient.getJobPreviewUrl(jobId) : "";
       const backendDownloadUrl = originalExists ? apiClient.getJobPreviewUrl(jobId, { download: true }) : "";
-      const previewKind = ownsExistingPreviewUrl && existingPreviewUrl
-        ? activeJob.previewKind
-        : originalExists && isPreviewImageContentType(originalContentType)
-          ? "image"
-          : originalExists
-            ? "file"
-            : "placeholder";
-      const previewUrl = ownsExistingPreviewUrl && existingPreviewUrl
-        ? existingPreviewUrl
-        : previewKind === "image"
-          ? backendPreviewUrl
-          : "";
+      let previewKind = "placeholder";
+      let previewUrl = "";
+      let ownsPreviewUrl = false;
+
+      if (originalExists && isPreviewImageContentType(originalContentType)) {
+        previewKind = "image";
+        previewUrl = backendPreviewUrl;
+      } else if (originalExists) {
+        previewKind = "file";
+      } else if (ownsExistingPreviewUrl && existingPreviewUrl) {
+        previewKind = activeJob.previewKind;
+        previewUrl = existingPreviewUrl;
+        ownsPreviewUrl = true;
+      }
+
+      if (ownsExistingPreviewUrl && existingPreviewUrl && previewUrl !== existingPreviewUrl) {
+        URL.revokeObjectURL(existingPreviewUrl);
+      }
 
       applyStatus(jobId, statusView);
       mergeJob(jobId, {
@@ -894,6 +901,7 @@
             statusView.result_available,
           ),
         },
+        ownsPreviewUrl,
         previewKind,
         previewUrl,
         sourceContentType: originalContentType,
@@ -1070,6 +1078,7 @@
 
       copyButton.disabled = !activeJob || !activeJob.markdown;
       downloadButton.disabled = !activeJob || !activeJob.markdown;
+      pdfButton.disabled = !activeJob || !activeJob.resultAvailable || activeJob.isProcessing || activeJob.isLoadingResult;
       deleteButton.disabled = !activeJob;
 
       if (!activeJob) {
@@ -1140,6 +1149,7 @@
       workspaceGrid.classList.toggle("is-empty", !activeJob);
       copyButton.disabled = !activeJob || !activeJob.markdown;
       downloadButton.disabled = !activeJob || !activeJob.markdown;
+      pdfButton.disabled = !activeJob || !activeJob.resultAvailable || activeJob.isProcessing || activeJob.isLoadingResult;
       deleteButton.disabled = !activeJob;
 
       if (!activeJob) {
@@ -1500,6 +1510,25 @@
       showToast("Markdown скачан");
     }
 
+    async function downloadPdf() {
+      if (!activeJob || !activeJob.resultAvailable) {
+        showToast("PDF пока недоступен");
+        return;
+      }
+
+      const jobId = activeJob.id;
+      const response = await apiClient.getJobPdf(jobId);
+      const blob = response.blob;
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = response.filename || `analysis_${shortId(jobId)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      URL.revokeObjectURL(link.href);
+      link.remove();
+      showToast("PDF скачан");
+    }
+
     openJobsButton.addEventListener("click", openWithoutSelection);
     closeButton.addEventListener("click", closeWorkspace);
     backdrop.addEventListener("click", closeWorkspace);
@@ -1511,6 +1540,11 @@
       copyMarkdown().catch(() => showToast("Не удалось скопировать Markdown"));
     });
     downloadButton.addEventListener("click", downloadMarkdown);
+    pdfButton.addEventListener("click", () => {
+      downloadPdf().catch((error) => {
+        showToast(error && error.message ? error.message : "Не удалось скачать PDF");
+      });
+    });
     deleteButton.addEventListener("click", () => {
       if (!activeJob) {
         return;

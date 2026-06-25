@@ -95,6 +95,16 @@
     });
   }
 
+  function filenameFromContentDisposition(value) {
+    const text = String(value || "");
+    const match = /filename="([^"]+)"/i.exec(text) || /filename=([^;]+)/i.exec(text);
+    if (!match) {
+      return "";
+    }
+
+    return match[1].trim().replace(/[\\/:*?"<>|]/g, "_");
+  }
+
   async function requestJson(path, options) {
     const settings = options || {};
     const controller = new AbortController();
@@ -160,6 +170,65 @@
     }
   }
 
+  async function requestBlob(path, options) {
+    const settings = options || {};
+    const controller = new AbortController();
+    let timedOut = false;
+    let externalAbortHandler = null;
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, settings.timeoutMs || DEFAULT_TIMEOUT_MS);
+
+    if (settings.signal) {
+      if (settings.signal.aborted) {
+        window.clearTimeout(timeoutId);
+        throw new ApiClientError(ERROR_MESSAGES.request_cancelled, {
+          errorType: "request_cancelled",
+        });
+      }
+
+      externalAbortHandler = () => controller.abort();
+      settings.signal.addEventListener("abort", externalAbortHandler, { once: true });
+    }
+
+    try {
+      const response = await fetch(endpoint(path), {
+        method: settings.method || "GET",
+        signal: controller.signal,
+        headers: settings.headers,
+      });
+
+      if (!response.ok) {
+        const payload = await parseResponsePayload(response);
+        throwFromPayload(response, payload);
+      }
+
+      return {
+        blob: await response.blob(),
+        filename: filenameFromContentDisposition(response.headers.get("content-disposition")),
+      };
+    } catch (error) {
+      if (error instanceof ApiClientError) {
+        throw error;
+      }
+
+      if (error && error.name === "AbortError") {
+        const errorType = timedOut ? "network_timeout" : "request_cancelled";
+        throw new ApiClientError(ERROR_MESSAGES[errorType], { errorType });
+      }
+
+      throw new ApiClientError("API недоступен. Проверьте, что сервер запущен.", {
+        errorType: "network_unavailable",
+      });
+    } finally {
+      window.clearTimeout(timeoutId);
+      if (externalAbortHandler && settings.signal) {
+        settings.signal.removeEventListener("abort", externalAbortHandler);
+      }
+    }
+  }
+
   function uploadDocument(file, options) {
     const form = new FormData();
     form.append("file", file, file.name);
@@ -201,6 +270,12 @@
     });
   }
 
+  function getJobPdf(jobId, options) {
+    return requestBlob(`/jobs/${encodeURIComponent(jobId)}/pdf`, {
+      signal: options && options.signal,
+    });
+  }
+
   function getJobPreviewUrl(jobId, options) {
     const suffix = options && options.download ? "?download=true" : "";
     return endpoint(`/jobs/${encodeURIComponent(jobId)}/preview${suffix}`);
@@ -218,6 +293,7 @@
     deleteJob,
     getJobDetail,
     getJobMarkdown,
+    getJobPdf,
     getJobPreviewUrl,
     getJobResult,
     getJobStatus,

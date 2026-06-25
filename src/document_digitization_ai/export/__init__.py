@@ -24,6 +24,10 @@ from document_digitization_ai.export.reconstruction import (
     ExtractionResultReconstructionError as ExtractionResultReconstructionError,
     reconstruct_extraction_result_from_payload as reconstruct_extraction_result_from_payload,
 )
+from document_digitization_ai.export.pdf import (
+    PdfRenderError as PdfRenderError,
+    render_extraction_result_pdf as render_extraction_result_pdf,
+)
 
 __all__ = [
     "ExportDocument",
@@ -36,6 +40,7 @@ __all__ = [
     "ExportTextBlockRow",
     "ExportWarningRow",
     "ExtractionResultReconstructionError",
+    "PdfRenderError",
     "build_extraction_result_export_document",
     "count_extraction_result_warnings",
     "format_confidence",
@@ -43,5 +48,6 @@ __all__ = [
     "markdown_table_cell",
     "reconstruct_extraction_result_from_payload",
     "render_extraction_result_markdown",
+    "render_extraction_result_pdf",
     "render_reconstructed_text_markdown",
 ]

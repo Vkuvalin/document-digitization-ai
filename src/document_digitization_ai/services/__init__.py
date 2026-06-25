@@ -7,6 +7,7 @@ from document_digitization_ai.services.result_export import (
     DocumentResultExportError as DocumentResultExportError,
     DocumentResultExportService as DocumentResultExportService,
     MarkdownExportResult as MarkdownExportResult,
+    PdfExportResult as PdfExportResult,
 )
 from document_digitization_ai.services.extraction_workflow import (
     DocumentExtractionRunSummary as DocumentExtractionRunSummary,
@@ -26,4 +27,5 @@ __all__ = [
     "DocumentResultExportError",
     "DocumentResultExportService",
     "MarkdownExportResult",
+    "PdfExportResult",
 ]

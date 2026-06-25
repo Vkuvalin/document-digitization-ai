@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from document_digitization_ai.api.http.dependencies import get_document_facade
 from document_digitization_ai.api.http.errors import (
@@ -125,6 +125,24 @@ async def export_job_markdown(
     )
     raise_for_backend_error(result.error, allow_result_unavailable=True)
     return MarkdownExportResponse.from_view(result)
+
+
+@router.get("/jobs/{job_id}/pdf")
+async def get_job_pdf(
+    job_id: str,
+    facade: DocumentFacade,
+) -> Response:
+    result = await call_facade(lambda: facade.get_result_pdf(job_id))
+    raise_for_backend_error(result.error)
+    if result.pdf is None or result.filename is None:
+        raise ApiHTTPError("internal_error", "Internal server error.")
+    return Response(
+        content=result.pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{result.filename}"',
+        },
+    )
 
 
 @router.get("/jobs/{job_id}/artifacts", response_model=ArtifactListResponse)

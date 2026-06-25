@@ -27,6 +27,7 @@ from document_digitization_ai.services import (
     DocumentIntakeService,
     DocumentResultExportService,
     MarkdownExportResult,
+    PdfExportResult,
 )
 from document_digitization_ai.storage import (
     ArtifactLayoutError,
@@ -116,6 +117,14 @@ class LocalDocumentApplication:
         ):
             return result
         return self._write_markdown_export_artifact(result)
+
+    async def export_result_pdf(
+        self,
+        job_id: str,
+    ) -> PdfExportResult:
+        async with self._session_factory() as session:
+            service = self._build_result_export_service(session)
+            return await service.export_job_result_pdf(job_id)
 
     async def close(self) -> None:
         await self._engine.dispose()
