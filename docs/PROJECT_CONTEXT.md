@@ -1,57 +1,51 @@
-# Project Context
+# Контекст проекта
 
-## 1. Purpose
+## 1. Назначение
 
-`document-digitization-ai` — backend-first MVP для оцифровки документов:
-приема изображения документа, извлечения текста, восстановления полей/таблиц,
-валидации результата и выдачи результата через API, Web UI, Markdown и PDF.
+`document-digitization-ai` — MVP для оцифровки документов с приоритетом серверной части:
+приём изображения документа, извлечение текста, восстановление полей и таблиц,
+валидация результата и выдача результата через API, веб-интерфейс, Markdown и PDF.
 
 Документ фиксирует текущий принятый контекст MVP для владельца проекта и
-будущего maintainer-а. Это не публичный marketing README, не roadmap и не
-Codex workflow document.
+будущего сопровождающего разработчика. Это не публичный маркетинговый README, не
+дорожная карта и не документ рабочего процесса Codex.
 
-## 2. MVP Scope
+## 2. Рамки MVP
 
-В scope текущего MVP входят:
+В текущий MVP входят:
 
-- локальная backend-first обработка одного загруженного документа за раз;
+- локальная обработка одного загруженного документа за раз с приоритетом серверной части;
 - HTTP API на FastAPI;
-- статический Web UI, смонтированный backend-ом под `/app`;
-- локальное хранение job state в SQLite и файловых artifacts в `./data`;
-- deterministic fake provider как provider по умолчанию для локальной работы и
-  автоматических тестов;
-- opt-in real-provider path через OpenRouter;
-- opt-in media staging через ImgBB для provider-facing public image URL;
-- backend validation/sanitization внешнего provider output;
-- просмотр статуса, истории, результата, preview исходного файла и удаление job;
-- backend-owned Markdown и PDF exports.
+- статический веб-интерфейс, подключённый серверной частью по адресу `/app`;
+- локальное хранение состояния задач обработки в SQLite и файловых артефактов в `./data`;
+- детерминированный провайдер `fake` по умолчанию для локальной работы и автоматических тестов;
+- явно включаемый режим реального провайдера через OpenRouter;
+- явно включаемая подготовка медиа через ImgBB для получения публичного URL изображения, доступного провайдеру;
+- серверная валидация и очистка внешнего вывода провайдера;
+- просмотр статуса, истории, результата, предпросмотр исходного файла и удаление задачи обработки;
+- экспорт Markdown и PDF, за который отвечает серверная часть.
 
-Принятые architectural boundaries для MVP:
+Принятые архитектурные границы MVP:
 
-- UI, API routes и scripts являются carriers/adapters, а не владельцами
-  business logic.
-- Runtime configuration идет через settings/environment.
-- Provider/model output считается untrusted до backend validation.
-- Provider transport изолирован в provider/media adapters.
-- Export rendering принадлежит backend-слою.
+- интерфейс, маршруты API и скрипты являются точками входа и адаптерами, а не владельцами бизнес-логики.
+- Рабочая конфигурация задаётся через настройки и переменные окружения.
+- Вывод провайдера или модели считается недоверенным до прохождения серверной валидации.
+- Транспорт взаимодействия с провайдером изолирован в адаптерах провайдера и медиа.
+- Формирование экспорта относится к серверному слою.
 
-## 3. Main User Flow
+## 3. Основной пользовательский сценарий
 
-1. Пользователь открывает Web UI под `/app` или вызывает HTTP API.
+1. Пользователь открывает веб-интерфейс по адресу `/app` или вызывает HTTP API.
 2. Пользователь загружает файл через `POST /documents`.
-3. Backend проверяет размер upload, безопасное имя файла и локально сохраняет
-   исходный файл в upload artifacts.
-4. Backend запускает image diagnostics, создает job и extraction attempt.
-5. Для fake provider workflow результат создается детерминированно локально.
-6. Для OpenRouter workflow backend подготавливает provider context, staging
-   media reference, prompt/schema package и structured output request.
-7. Provider response сохраняется как raw/sanitized attempt artifacts, затем
-   валидируется backend-ом.
-8. Нормализованный extraction result сохраняется в DB.
-9. Пользователь получает статус, preview, результат, Markdown/PDF export или
-   удаляет job.
+3. Серверная часть проверяет размер загружаемого файла, безопасность имени и локально сохраняет исходный файл среди артефактов загрузки.
+4. Серверная часть запускает диагностику изображения, создаёт задачу обработки и попытку извлечения данных.
+5. В режиме провайдера `fake` результат рабочего процесса создаётся локально и детерминированно.
+6. В режиме OpenRouter серверная часть подготавливает контекст провайдера, ссылку на подготовленный медиафайл, пакет промпта/схемы и запрос структурированного вывода.
+7. Ответ провайдера сохраняется как необработанные и очищенные артефакты попытки, после чего проходит серверную валидацию.
+8. Нормализованный результат извлечения сохраняется в БД.
+9. Пользователь получает статус, предпросмотр, результат, экспорт Markdown/PDF либо удаляет задачу обработки.
 
-## 4. Current Capabilities
+## 4. Текущие возможности
 
 HTTP API:
 
@@ -68,252 +62,230 @@ HTTP API:
 - `GET /jobs/{job_id}/pdf`;
 - `GET /jobs/{job_id}/artifacts`.
 
-Runtime capabilities:
+Возможности во время работы приложения:
 
-- upload size limit is configured by image diagnostics settings;
-- empty and oversized uploads are rejected before facade processing;
-- unsafe submission filenames are rejected;
-- job history supports limit/offset/status filtering;
-- original upload preview supports selected inline content types;
-- delete removes DB job/attempt state and attempts safe artifact cleanup;
-- result export can render Markdown without writing an artifact;
-- explicit Markdown export writes `jobs/{job_id}/exports/result.md`;
-- PDF export returns generated PDF bytes.
+- ограничение размера загружаемого файла задаётся настройками диагностики изображения;
+- пустые и слишком большие файлы отклоняются до обработки фасадом приложения;
+- небезопасные имена отправляемых файлов отклоняются;
+- история задач поддерживает фильтрацию по `limit` / `offset` / `status`;
+- предпросмотр исходного загруженного файла поддерживает выбранные типы содержимого для показа непосредственно в браузере;
+- удаление убирает состояние задачи и попыток из БД и пытается безопасно очистить связанные артефакты;
+- экспорт результата может сформировать Markdown без записи отдельного артефакта;
+- явный экспорт Markdown записывает `jobs/{job_id}/exports/result.md`;
+- экспорт PDF возвращает сгенерированные байты PDF.
 
-Input/output capabilities:
+Возможности ввода и вывода:
 
-- Safe supported input claim: image files that Pillow can open and diagnose.
-- UI currently accepts image files and `.pdf`, but PDF input processing is not
-  a settled capability because extraction still depends on image diagnostics.
-- Supported outputs: JSON API result, Web UI presentation, Markdown, PDF, and
-  original upload preview.
+- Безопасно заявляемый поддерживаемый ввод: файлы изображений, которые Pillow может открыть и диагностировать.
+- Интерфейс сейчас принимает изображения и `.pdf`, однако обработка PDF на входе ещё не является окончательно принятой возможностью, поскольку извлечение всё ещё зависит от диагностики изображения.
+- Поддерживаемый вывод: результат через JSON API, представление в веб-интерфейсе, Markdown, PDF и предпросмотр исходного загруженного файла.
 
-## 5. Architecture Overview
+## 5. Обзор архитектуры
 
-Current source layers:
+Текущие слои исходного кода:
 
-- `core`: typed settings and runtime configuration validation.
-- `contracts`: enums, schemas, status transitions and result contracts.
-- `diagnostics`: deterministic image diagnostics.
-- `db`: SQLAlchemy models, repositories and schema bootstrap.
-- `storage`: artifact path layouts, safe relative path validation and deletion.
-- `providers`: provider input context construction from backend-owned facts.
-- `media`: media staging port plus local/noop and ImgBB implementations.
-- `extraction`: provider interface, fake provider, OpenRouter adapter, prompts,
-  schema package and validation/sanitization.
-- `services`: intake, extraction workflow and result export orchestration.
-- `application`: runtime wiring, facade methods for API/UI, result review facts.
-- `api/http`: FastAPI app, HTTP schemas and routes.
-- `web/static`: static browser UI.
-- `export`: Markdown/PDF export document model, builder and renderers.
-- `scripts`: manual operational scripts.
-- `tests`: deterministic automated tests.
+- `core`: типизированные настройки и валидация конфигурации рабочей среды.
+- `contracts`: перечисления, схемы, переходы состояний и контракты результата.
+- `diagnostics`: детерминированная диагностика изображений.
+- `db`: модели SQLAlchemy, репозитории и начальная инициализация схемы БД.
+- `storage`: структуры путей артефактов, безопасная проверка относительных путей и удаление.
+- `providers`: построение входного контекста провайдера из фактов, принадлежащих серверной части.
+- `media`: порт подготовки медиа, а также локальная/noop-реализация и реализация ImgBB.
+- `extraction`: интерфейс провайдера, провайдер `fake`, адаптер OpenRouter, промпты, пакет схемы, валидация и очистка.
+- `services`: координация приёма файла, рабочего процесса извлечения и экспорта результата.
+- `application`: связывание компонентов во время работы приложения, методы фасада для API/интерфейса и данные для проверки результата.
+- `api/http`: приложение FastAPI, HTTP-схемы и маршруты.
+- `web/static`: статический браузерный интерфейс.
+- `export`: модель экспортируемого документа Markdown/PDF, построитель и средства формирования.
+- `scripts`: ручные служебные скрипты.
+- `tests`: детерминированные автоматизированные тесты.
 
-Runtime ownership:
+Ответственность компонентов во время работы:
 
-- FastAPI app factory: `document_digitization_ai.api.http.app:create_app`.
-- HTTP routes delegate to `DocumentProcessingFacade`.
-- `LocalDocumentApplication` owns local DB/session/service wiring.
-- Services orchestrate intake, extraction, validation and export workflows.
-- Repositories persist state and enforce valid job status transitions.
-- OpenAI SDK usage is isolated to the OpenRouter adapter.
-- ImgBB transport is isolated to the ImgBB media staging implementation.
+- фабрика приложения FastAPI: `document_digitization_ai.api.http.app:create_app`.
+- HTTP-маршруты передают выполнение в `DocumentProcessingFacade`.
+- `LocalDocumentApplication` отвечает за локальное связывание БД, сессий и сервисов.
+- Сервисы координируют рабочие процессы приёма, извлечения, валидации и экспорта.
+- Репозитории сохраняют состояние и обеспечивают допустимые переходы статусов задачи.
+- Использование OpenAI SDK изолировано внутри адаптера OpenRouter.
+- Транспорт ImgBB изолирован внутри реализации подготовки медиа через ImgBB.
 
-There is no declared project script or committed ASGI server command yet.
-`pyproject.toml` declares FastAPI but does not declare `uvicorn` as a direct
-dependency.
+В проекте пока не объявлена отдельная команда запуска сервера или скрипт ASGI, зафиксированный в репозитории.
+`pyproject.toml` объявляет FastAPI, но не содержит `uvicorn` как прямую зависимость.
 
-## 6. Data, Storage and Retention
+## 6. Данные, хранение и срок хранения
 
-Default local storage:
+Локальное хранилище по умолчанию:
 
-- database: `sqlite+aiosqlite:///./data/app.db`;
-- uploads root: `./data/uploads`;
-- results root: `./data/results`;
-- default retention setting: `ARTIFACT_RETENTION_DAYS=7`.
+- база данных: `sqlite+aiosqlite:///./data/app.db`;
+- корневой каталог загрузок: `./data/uploads`;
+- корневой каталог результатов: `./data/results`;
+- срок хранения по умолчанию: `ARTIFACT_RETENTION_DAYS=7`.
 
-Persisted data:
+Сохраняемые данные:
 
-- `DocumentJob` stores job status, source image metadata, diagnostics payload,
-  extraction result payload, validation status, error message and timestamps.
-- `ExtractionAttempt` stores attempt status, provider/model/schema metadata,
-  timing, request/response metadata, artifact paths/sizes and error metadata.
+- `DocumentJob` хранит статус задачи, метаданные исходного изображения, данные диагностики, результат извлечения, статус валидации, сообщение об ошибке и временные метки.
+- `ExtractionAttempt` хранит статус попытки, метаданные провайдера/модели/схемы, время выполнения, метаданные запроса/ответа, пути и размеры артефактов, а также метаданные ошибок.
 
-Artifacts:
+Артефакты:
 
-- original upload is stored under a per-job upload directory;
-- provider raw/sanitized/error responses are stored under validated relative
-  attempt artifact paths;
-- Markdown export artifact path is `jobs/{job_id}/exports/result.md`;
-- artifact path helpers reject absolute paths, parent traversal, drive prefixes
-  and unsafe path segments.
+- исходный загруженный файл хранится в отдельном каталоге загрузки для каждой задачи;
+- необработанные, очищенные и ошибочные ответы провайдера хранятся по проверенным относительным путям артефактов попытки;
+- путь артефакта экспорта Markdown: `jobs/{job_id}/exports/result.md`;
+- вспомогательные функции работы с путями артефактов отклоняют абсолютные пути, переходы к родительским каталогам, префиксы дисков и небезопасные сегменты пути.
 
-Delete and retention:
+Удаление и срок хранения:
 
-- `DELETE /jobs/{job_id}` deletes DB state and attempts safe cleanup of related
-  upload/result artifact trees.
-- `cleanup_expired_jobs` exists on the application facade.
-- No scheduler, background worker, CLI or public cleanup endpoint is currently
-  accepted for automatic retention cleanup.
+- `DELETE /jobs/{job_id}` удаляет состояние из БД и пытается безопасно очистить связанные деревья артефактов загрузки и результата.
+- `cleanup_expired_jobs` существует в фасаде приложения.
+- Планировщик, фоновый процесс, CLI или публичная конечная точка очистки для автоматического удаления по сроку хранения сейчас не приняты.
 
-## 7. Exports
+## 7. Экспорт
 
-Exports are backend-owned.
+За экспорт отвечает серверная часть.
 
 Markdown:
 
-- `GET /jobs/{job_id}/markdown` returns Markdown without writing an artifact.
-- `POST /jobs/{job_id}/markdown/export` writes a Markdown artifact and returns
-  artifact metadata.
+- `GET /jobs/{job_id}/markdown` возвращает Markdown без записи артефакта.
+- `POST /jobs/{job_id}/markdown/export` записывает артефакт Markdown и возвращает его метаданные.
 
 PDF:
 
-- `GET /jobs/{job_id}/pdf` returns generated PDF bytes with
+- `GET /jobs/{job_id}/pdf` возвращает сгенерированные байты PDF с типом
   `application/pdf`.
-- PDF rendering uses backend export models and PyMuPDF.
+- Для формирования PDF используются серверные модели экспорта и PyMuPDF.
 
-Stable export sections:
+Стабильные разделы экспорта:
 
-- summary;
-- warnings;
-- fields;
-- tables;
-- user-facing text.
+- сводка;
+- предупреждения;
+- поля;
+- таблицы;
+- пользовательский текст.
 
-Internal diagnostics, extraction metadata, provider request details, raw
-provider response, provider sanitized response, secrets, local paths and
-provider debug data are not part of the default user-facing exports.
+Внутренняя диагностика, метаданные извлечения, сведения о запросе к провайдеру,
+необработанный ответ провайдера, очищенный ответ провайдера, секреты, локальные пути
+и отладочные данные провайдера не входят в пользовательский экспорт по умолчанию.
 
-There is no artifact download endpoint for arbitrary stored artifact payloads.
-Artifact reference metadata inventory may be API-visible through current job
-routes; it is not a generic artifact explorer or arbitrary payload download
-surface.
+Конечной точки для скачивания произвольного содержимого сохранённых артефактов нет.
+Перечень метаданных ссылок на артефакты может быть доступен через API в текущих маршрутах задач;
+это не универсальный просмотрщик артефактов и не интерфейс для скачивания произвольного содержимого.
 
-## 8. LLM / Provider Behavior
+## 8. Поведение LLM / провайдера
 
-Provider options:
+Варианты провайдера:
 
-- `fake`: default deterministic local provider;
-- `openrouter`: opt-in real provider adapter.
+- `fake`: стандартный детерминированный локальный провайдер;
+- `openrouter`: явно включаемый адаптер реального провайдера.
 
-Default local behavior:
+Локальное поведение по умолчанию:
 
 - `EXTRACTION_PROVIDER=fake`;
-- placeholder OpenRouter/ImgBB secrets may exist in `.env.example`;
-- default automated tests use fakes/injected transports and should not call
-  real external providers.
+- в `.env.example` могут находиться значения-заглушки секретов OpenRouter/ImgBB;
+- стандартные автоматизированные тесты используют фиктивные реализации и внедряемые транспортные механизмы и не должны обращаться к реальным внешним провайдерам.
 
-OpenRouter behavior:
+Поведение OpenRouter:
 
-- real OpenRouter calls require non-placeholder `OPENROUTER_API_KEY`;
-- provider context requires non-placeholder `OPENROUTER_MODEL`;
-- structured outputs are enabled by default;
-- schema mode defaults to `compact`;
-- OpenRouter requests require `PUBLIC_URL` staged media, not local file paths.
+- реальные вызовы OpenRouter требуют настоящего `OPENROUTER_API_KEY` без значения-заглушки;
+- контекст провайдера требует настоящего `OPENROUTER_MODEL` без значения-заглушки;
+- структурированный вывод включён по умолчанию;
+- режим схемы по умолчанию — `compact`;
+- запросы OpenRouter требуют подготовленного медиафайла с `PUBLIC_URL`, а не локального пути к файлу.
 
-Media staging:
+Подготовка медиа:
 
-- `MEDIA_STAGING_BACKEND=none` returns a local file reference and performs no
-  external upload;
-- `MEDIA_STAGING_BACKEND=imgbb` requires `IMGBB_API_KEY` and uploads media to
-  ImgBB for a provider-facing public URL.
+- `MEDIA_STAGING_BACKEND=none` возвращает ссылку на локальный файл и не выполняет внешнюю загрузку;
+- `MEDIA_STAGING_BACKEND=imgbb` требует `IMGBB_API_KEY` и загружает медиа в ImgBB для получения публичного URL, доступного провайдеру.
 
-Validation and safety:
+Валидация и безопасность:
 
-- provider output is untrusted;
-- backend validation normalizes result payload into internal contracts;
-- partial/malformed optional data can produce warnings;
-- substantively empty provider output fails validation;
-- provider errors are mapped and sanitized before surfacing.
+- вывод провайдера считается недоверенным;
+- серверная валидация нормализует данные результата во внутренние контракты;
+- частично заполненные или некорректные необязательные данные могут приводить к предупреждениям;
+- содержательно пустой вывод провайдера не проходит валидацию;
+- ошибки провайдера преобразуются и очищаются до передачи наружу.
 
-Manual real-provider smoke is available through `scripts/manual_provider_smoke.py`
-and is gated by `RUN_REAL_PROVIDER_SMOKE=1`. It is not part of default pytest
-or routine local validation.
+Ручная проверка реального провайдера доступна через `scripts/manual_provider_smoke.py`
+и разрешается флагом `RUN_REAL_PROVIDER_SMOKE=1`. Она не входит в стандартный запуск `pytest`
+или обычную локальную проверку.
 
-## 9. Web UI
+## 9. Веб-интерфейс
 
-The current Web UI is a static browser UI mounted by FastAPI under `/app`.
+Текущий веб-интерфейс представляет собой статический браузерный интерфейс, подключённый FastAPI по адресу `/app`.
 
-Observed UI capabilities:
+Наблюдаемые возможности интерфейса:
 
-- file upload surface;
-- local image preview for selected files;
-- backend preview after job creation when available;
-- job history/files panel;
-- status polling;
-- result tabs for summary, warnings, values, tables, user-facing text and Markdown;
-- Markdown copy/download;
-- PDF download;
-- delete confirmation.
+- область загрузки файла;
+- локальный предпросмотр выбранных изображений;
+- серверный предпросмотр после создания задачи, когда он доступен;
+- панель истории задач/файлов;
+- периодический опрос статуса;
+- вкладки результата со сводкой, предупреждениями, значениями, таблицами, пользовательским текстом и Markdown;
+- копирование/скачивание Markdown;
+- скачивание PDF;
+- подтверждение удаления.
 
-The UI is a carrier for backend capabilities. It should not own extraction,
-validation, storage, provider policy or export decisions.
+Интерфейс является точкой доступа к возможностям серверной части. Он не должен самостоятельно определять логику извлечения,
+валидации, хранения, политику провайдера или решения об экспорте.
 
-Known UI caveat:
+Известная оговорка интерфейса:
 
-- upload input currently accepts `.pdf`, but accepted MVP input should be
-  documented conservatively as image-first until PDF input behavior is approved
-  and tested as a supported capability.
+- поле загрузки сейчас принимает `.pdf`, однако поддерживаемый ввод MVP следует консервативно описывать как ориентированный прежде всего на изображения, пока поведение PDF на входе не утверждено и не протестировано как поддерживаемая возможность.
 
-## 10. Safety Boundaries
+## 10. Границы безопасности
 
-Non-negotiable runtime boundaries:
+Обязательные границы во время работы приложения:
 
-- no real provider calls in default automated tests;
-- no external provider call without explicit provider/media settings and
-  required secrets;
-- no hidden fallback from failed real provider to fake provider;
-- no secrets, local credentials or generated runtime artifacts in git;
-- provider outputs are untrusted until validated by backend;
-- UI and HTTP routes do not own business logic;
-- scripts do not define product architecture;
-- artifact paths must stay inside configured storage roots.
+- никаких вызовов реального провайдера в стандартных автоматизированных тестах;
+- никаких вызовов внешнего провайдера без явных настроек провайдера/медиа и необходимых секретов;
+- никакого скрытого перехода с неудачно завершившегося реального провайдера на `fake`;
+- никаких секретов, локальных учётных данных или сгенерированных во время работы артефактов в git;
+- вывод провайдера считается недоверенным до серверной валидации;
+- интерфейс и HTTP-маршруты не владеют бизнес-логикой;
+- скрипты не определяют архитектуру продукта;
+- пути артефактов должны оставаться внутри настроенных корневых каталогов хранилища.
 
-Documentation boundaries:
+Границы документации:
 
-- deleted early planning docs are not current source of truth;
-- preserved reports under `docs/codex/reports/` are analysis inputs, not durable
-  product docs;
-- final internal project docs must be updated in separate approved Stage 26 steps.
+- удалённые ранние документы планирования не являются текущим достоверным источником состояния проекта;
+- сохранённые отчёты в `docs/codex/reports/` являются входными данными для анализа, а не долгосрочной документацией продукта;
+- итоговые внутренние документы проекта должны обновляться отдельными утверждёнными шагами Stage 26.
 
-## 11. Known Limitations
+## 11. Известные ограничения
 
-- No committed ASGI server runner command or project script exists yet.
-- PDF export exists, but PDF upload/input is not a settled supported capability.
-- No auth, users, tenants or permission model.
-- No production deployment architecture.
-- No migration framework beyond schema bootstrap.
-- No scheduled retention cleanup.
-- No generic artifact explorer or arbitrary artifact payload download surface.
-  Artifact reference metadata inventory may be API-visible through current job
-  routes.
-- No batch processing.
-- No user correction/review workflow.
-- No DOCX, XLSX or CSV export.
-- No global pytest network blocker; tests rely on fakes, injection and env
-  gates to avoid real provider calls.
-- Some media verification/strict settings are parsed but not treated as accepted
-  user-facing runtime behavior.
+- В репозитории пока нет зафиксированной команды запуска ASGI-сервера или отдельного проектного скрипта.
+- Экспорт PDF существует, но загрузка/обработка PDF на входе ещё не является окончательно принятой поддерживаемой возможностью.
+- Нет аутентификации, пользователей, арендаторов или модели разрешений.
+- Нет архитектуры развёртывания в промышленной среде.
+- Нет системы миграций помимо начальной инициализации схемы.
+- Нет плановой автоматической очистки по сроку хранения.
+- Нет универсального просмотрщика артефактов или интерфейса для скачивания произвольного содержимого артефактов.
+  Перечень метаданных ссылок на артефакты может быть доступен через API в текущих маршрутах задач.
+- Нет пакетной обработки.
+- Нет пользовательского процесса исправления/проверки результата.
+- Нет экспорта DOCX, XLSX или CSV.
+- В `pytest` нет глобального запрета сетевых обращений; тесты используют фиктивные реализации, внедрение зависимостей и разрешающие флаги переменных окружения, чтобы избежать реальных вызовов провайдера.
+- Некоторые настройки проверки медиа и строгого режима разбираются конфигурацией, но не считаются принятым пользовательским поведением во время работы приложения.
 
-## 12. Explicit Non-Goals
+## 12. Явно исключённые задачи
 
-The current MVP does not try to solve:
+Текущий MVP не пытается решать следующие задачи:
 
-- production hosting/deployment;
-- multi-user access control;
-- billing, quotas or tenant isolation;
-- long-term object storage strategy;
-- final provider/model selection policy;
-- prompt/schema experimentation UI;
-- general OCR engine implementation from scratch;
-- multi-page PDF extraction pipeline;
-- arbitrary artifact browsing/downloading;
-- public API contract stabilization;
-- broad frontend product polish beyond the current local Web UI carrier.
+- промышленный хостинг и развёртывание;
+- управление доступом нескольких пользователей;
+- биллинг, квоты или изоляция арендаторов;
+- долгосрочная стратегия объектного хранилища;
+- окончательная политика выбора провайдера/модели;
+- интерфейс для экспериментов с промптами и схемами;
+- реализация универсального OCR-движка с нуля;
+- конвейер извлечения данных из многостраничных PDF;
+- произвольный просмотр/скачивание артефактов;
+- стабилизация публичного контракта API;
+- масштабная продуктовая доработка клиентской части за пределами текущего локального веб-интерфейса.
 
-## 13. Post-MVP Directions
+## 13. Направления после MVP
 
-Current documentation baseline:
+Текущая базовая документация:
 
 - `README.md`;
 - `docs/PROJECT_CONTEXT.md`;
@@ -321,17 +293,12 @@ Current documentation baseline:
 - `docs/LLM_MODEL_POLICY.md`;
 - `docs/PROJECT_MAP.md`.
 
-Likely follow-up decisions:
+Вероятные последующие решения:
 
-- approve and document a concrete app run command or ASGI server dependency;
-- settle PDF input behavior: reject, hide from UI, or implement supported
-  PDF-to-image extraction path;
-- decide whether retention cleanup should be manual, scheduled, CLI-driven or
-  API-driven;
-- decide whether media verification/strict settings should be implemented,
-  reserved or removed;
-- decide whether CI needs a hard no-network guard for pytest;
-- decide whether sanitized provider artifacts should become user-visible
-  inventory while raw provider artifacts remain internal;
-- decide whether artifact metadata inventory is accepted public API metadata,
-  internal diagnostic metadata or temporary MVP surface.
+- утвердить и задокументировать конкретную команду запуска приложения или зависимость ASGI-сервера;
+- определить поведение PDF на входе: отклонять, скрыть из интерфейса или реализовать поддерживаемое преобразование PDF в изображения для извлечения данных;
+- решить, должна ли очистка по сроку хранения запускаться вручную, по расписанию, через CLI или через API;
+- решить, следует ли реализовать, зарезервировать или удалить настройки проверки медиа и строгого режима;
+- решить, нужен ли CI жёсткий запрет сетевых обращений для `pytest`;
+- решить, должны ли очищенные артефакты провайдера стать видимым пользователю перечнем, при этом необработанные артефакты провайдера останутся внутренними;
+- решить, являются ли метаданные перечня артефактов принятой публичной частью API, внутренними диагностическими метаданными или временной поверхностью MVP.

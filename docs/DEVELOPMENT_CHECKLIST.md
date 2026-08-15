@@ -1,103 +1,90 @@
-# Development Checklist
+# Контрольный список разработки
 
-## 1. Before Starting a Change
+## 1. Перед началом изменения
 
-- [ ] Define the exact goal in one or two sentences.
-- [ ] Identify affected layers: backend, API, Web UI, extraction, storage,
-  export, configuration, tests or docs.
-- [ ] Check `git status --short` before editing.
-- [ ] Keep unrelated existing changes separate from the current change.
-- [ ] Confirm whether the change is MVP scope, UI polish or post-MVP work.
-- [ ] Stop before introducing new dependencies, runtime services, public
-  behavior or architecture decisions without explicit approval.
-- [ ] Do not treat reports or old planning notes as source of truth.
+- [ ] Сформулировать точную цель в одном-двух предложениях.
+- [ ] Определить затрагиваемые уровни: серверная часть, API, веб-интерфейс, извлечение данных, хранилище, экспорт, конфигурация, тесты или документация.
+- [ ] Перед редактированием проверить `git status --short`.
+- [ ] Не смешивать существующие несвязанные изменения с текущей задачей.
+- [ ] Уточнить, относится ли изменение к рамкам MVP, доработке интерфейса или работе после MVP.
+- [ ] Не добавлять новые зависимости, сервисы, необходимые для работы приложения, внешнее поведение или архитектурные решения без явного согласования.
+- [ ] Не считать отчёты или старые заметки по планированию достоверным источником текущего состояния проекта.
 
-## 2. Before Creating a Codex Task
+## 2. Перед созданием задачи для Codex
 
-- [ ] Make the task narrow and outcome-based.
-- [ ] Define in-scope files, layers and expected behavior.
-- [ ] Define non-goals and forbidden areas.
-- [ ] State validation commands expected for the change.
-- [ ] State manual checks when UI, provider, storage, export, preview/delete or
-  retention behavior is affected.
-- [ ] Call out whether real-provider smoke is allowed or forbidden.
-- [ ] Forbid broad scope creep and unrelated cleanup.
+- [ ] Делать задачу узкой и ориентированной на конкретный результат.
+- [ ] Указать входящие в задачу файлы и уровни системы, а также ожидаемое поведение.
+- [ ] Указать, что не является целью задачи, и области, которые запрещено затрагивать.
+- [ ] Указать команды проверки, которые должны быть выполнены для данного изменения.
+- [ ] Указать необходимые ручные проверки, если изменение затрагивает интерфейс, провайдера, хранилище, экспорт, предпросмотр/удаление или правила хранения данных.
+- [ ] Явно указать, разрешена или запрещена быстрая проверка с реальным провайдером.
+- [ ] Запретить необоснованное расширение объёма задачи и несвязанные с ней очистки или переработки.
 
-## 3. Backend/API Changes
+## 3. Изменения серверной части / API
 
-- [ ] Preserve application facade boundaries.
-- [ ] Keep FastAPI routes thin: parse HTTP input, call the facade, map response.
-- [ ] Do not put DB, storage, provider or export ownership directly in HTTP
-  routes unless the design is explicitly changed.
-- [ ] Update API tests for endpoint behavior, status codes and response shape.
-- [ ] Check error mapping for safe, user-facing messages.
-- [ ] Do not leak secrets, provider internals, local paths or raw debug payloads.
-- [ ] Keep backend validation as the gate for external/model/provider output.
+- [ ] Сохранять границы фасада приложения.
+- [ ] Оставлять маршруты FastAPI тонкими: разобрать HTTP-ввод, вызвать фасад приложения, преобразовать ответ.
+- [ ] Не переносить непосредственную работу с БД, хранилищем, провайдером или экспортом в HTTP-маршруты, если архитектура явно не изменена.
+- [ ] Обновлять API-тесты для проверки поведения конечных точек, кодов состояния и структуры ответа.
+- [ ] Проверять преобразование ошибок в безопасные и понятные пользователю сообщения.
+- [ ] Не раскрывать секреты, внутренние данные провайдера, локальные пути или необработанные отладочные данные.
+- [ ] Сохранять серверную валидацию как обязательный контрольный рубеж для внешних данных и результатов модели/провайдера.
 
-## 4. Web UI Changes
+## 4. Изменения веб-интерфейса
 
-- [ ] Verify the Web UI still works under `/app`.
-- [ ] Do not hardcode `localhost`; use relative backend endpoints.
-- [ ] Keep user-facing UI copy in Russian.
-- [ ] Preserve upload, polling, history and selected-file state.
-- [ ] Preserve preview, delete, Markdown and PDF flows.
-- [ ] Avoid presenting raw/sanitized JSON as a user-facing UI surface.
-- [ ] Run a manual browser check for visible UI changes when browser tools are
-  available.
-- [ ] Do not claim full PDF input support unless backend behavior is explicitly
-  implemented and tested.
+- [ ] Проверить, что веб-интерфейс по-прежнему работает по адресу `/app`.
+- [ ] Не задавать `localhost` жёстко; использовать относительные конечные точки серверной части.
+- [ ] Сохранять весь пользовательский текст интерфейса на русском языке.
+- [ ] Сохранять состояние загрузки, опроса статуса, истории и выбранного файла.
+- [ ] Сохранять сценарии предпросмотра, удаления, а также экспорта в Markdown и PDF.
+- [ ] Не выводить необработанный/очищенный JSON как пользовательский экран интерфейса.
+- [ ] При видимых изменениях интерфейса выполнять ручную проверку в браузере, если доступны браузерные инструменты.
+- [ ] Не заявлять полную поддержку PDF на входе, пока соответствующее поведение серверной части явно не реализовано и не протестировано.
 
-## 5. Extraction / Provider Changes
+## 5. Изменения извлечения данных / провайдера
 
-- [ ] Justify prompt, schema or model-policy changes narrowly.
-- [ ] Preserve the structured output contract expected by backend validation.
-- [ ] Treat provider output as untrusted until backend validation succeeds.
-- [ ] Do not run casual external provider calls during routine development.
-- [ ] Keep real-provider smoke explicit, manual and env-gated.
-- [ ] Remember that provider classification and field grouping may vary.
-- [ ] Preserve Stage 21 table-derived values behavior when changing field/table
-  extraction or result shaping.
-- [ ] Do not add hidden fallback from a failed real provider to the fake provider.
+- [ ] Изменения промпта, схемы или политики выбора модели должны иметь конкретное и ограниченное обоснование.
+- [ ] Сохранять контракт структурированного вывода, ожидаемый серверной валидацией.
+- [ ] Считать вывод провайдера недоверенным, пока он не прошёл серверную валидацию.
+- [ ] Не выполнять без необходимости внешние вызовы провайдера во время обычной разработки.
+- [ ] Быстрая проверка с реальным провайдером должна запускаться явно, вручную и только при включении через переменные окружения.
+- [ ] Учитывать, что классификация провайдера и группировка полей могут различаться между запусками.
+- [ ] При изменении извлечения полей/таблиц или формирования результата сохранять поведение значений, производных от таблиц, реализованное на Stage 21.
+- [ ] Не добавлять скрытый переход с неудачно завершившегося реального провайдера на `fake`-провайдер.
 
-## 6. Export Changes
+## 6. Изменения экспорта
 
-- [ ] Treat Markdown and PDF as user-facing outputs.
-- [ ] Keep default exports readable: summary, warnings, values, tables and text.
-- [ ] Do not expose `Extraction Metadata` in default user-facing exports.
-- [ ] Do not expose provider/model/job/attempt debug metadata.
-- [ ] Do not expose raw provider response, sanitized provider response, secrets
-  or local paths.
-- [ ] Update Markdown/PDF export tests when export shape changes.
-- [ ] Manually check downloaded Markdown/PDF files when export behavior changes.
+- [ ] Считать Markdown и PDF пользовательскими форматами результата.
+- [ ] Сохранять экспорт по умолчанию читаемым: сводка, предупреждения, значения, таблицы и текст.
+- [ ] Не включать `Extraction Metadata` в пользовательский экспорт по умолчанию.
+- [ ] Не включать отладочные метаданные провайдера, модели, задачи обработки или попытки выполнения.
+- [ ] Не включать необработанный ответ провайдера, очищенный ответ провайдера, секреты или локальные пути.
+- [ ] При изменении структуры экспорта обновлять тесты экспорта Markdown/PDF.
+- [ ] При изменении поведения экспорта вручную проверять скачанные файлы Markdown/PDF.
 
-## 7. Storage / Preview / Delete / Retention Changes
+## 7. Изменения хранения / предпросмотра / удаления / срока хранения
 
-- [ ] Keep preview behind the backend safe endpoint.
-- [ ] Do not expose raw/sanitized/debug artifacts as user-facing UI downloads.
-- [ ] Guard against path traversal, absolute paths, drive prefixes and unsafe
-  storage roots.
-- [ ] Ensure delete cannot remove files outside configured upload/result roots.
-- [ ] Preserve safe cleanup behavior for upload and result directories.
-- [ ] Keep retention wording accurate: default is 7 days through callable cleanup,
-  not scheduled cron/background cleanup.
-- [ ] Update storage, application and API tests when storage, preview, delete or
-  retention behavior changes.
+- [ ] Оставлять предпросмотр за безопасной конечной точкой серверной части.
+- [ ] Не предоставлять необработанные, очищенные или отладочные артефакты как пользовательские загрузки через интерфейс.
+- [ ] Защищаться от обхода путей (`path traversal`), абсолютных путей, префиксов дисков и небезопасных корневых каталогов хранилища.
+- [ ] Гарантировать, что удаление не может затронуть файлы за пределами настроенных корневых каталогов загрузок и результатов.
+- [ ] Сохранять безопасное удаление содержимого каталогов загрузок и результатов.
+- [ ] Точно описывать срок хранения: по умолчанию 7 дней с очисткой через вызываемую функцию, а не через запланированный `cron` или фоновую очистку.
+- [ ] При изменениях хранения, предпросмотра, удаления или срока хранения обновлять тесты хранилища, приложения и API.
 
-## 8. Configuration and Secrets
+## 8. Конфигурация и секреты
 
-- [ ] Use local `.env` for local settings.
-- [ ] Never commit `.env`, API keys, tokens, local credentials or generated
-  runtime artifacts.
-- [ ] Update `.env.example` when adding or renaming config variables.
-- [ ] Treat OpenRouter and ImgBB keys as sensitive.
-- [ ] Do not put secret values in reports, docs, tests, fixtures or screenshots.
-- [ ] Do not put local absolute paths in user-facing responses or exports.
-- [ ] Keep runtime configuration in settings/environment, not hidden constants.
+- [ ] Для локальных настроек использовать локальный `.env`.
+- [ ] Никогда не коммитить `.env`, API-ключи, токены, локальные учётные данные или сгенерированные во время работы артефакты.
+- [ ] При добавлении или переименовании переменных конфигурации обновлять `.env.example`.
+- [ ] Считать ключи OpenRouter и ImgBB конфиденциальными данными.
+- [ ] Не помещать значения секретов в отчёты, документацию, тесты, фикстуры или снимки экрана.
+- [ ] Не помещать локальные абсолютные пути в пользовательские ответы или экспортируемые данные.
+- [ ] Хранить рабочую конфигурацию в настройках/переменных окружения, а не в скрытых константах.
 
-## 9. Validation Commands
+## 9. Команды проверки
 
-Run the relevant subset for the change. For code, tests, config or behavior
-changes, use the full set:
+Для конкретного изменения запускать относящуюся к нему часть проверок. Для изменений кода, тестов, конфигурации или поведения использовать полный набор:
 
 ```powershell
 uv run pytest
@@ -106,51 +93,42 @@ uv run pyright
 git diff --check
 ```
 
-- [ ] Confirm default pytest does not call real external providers.
-- [ ] Skip broad code validation only for docs-only changes, and state why.
-- [ ] Always check `git status --short` before handoff.
+- [ ] Убедиться, что стандартный запуск `pytest` не обращается к реальным внешним провайдерам.
+- [ ] Пропускать полную проверку кода только для изменений исключительно в документации и явно указывать причину.
+- [ ] Перед передачей результата всегда проверять `git status --short`.
 
-## 10. Manual Smoke Checklist
+## 10. Контрольный список ручной проверки работоспособности
 
-For UI/API/export/storage changes, run a local smoke check:
+При изменениях интерфейса, API, экспорта или хранилища выполнить локальную базовую проверку:
 
-- [ ] Start the app.
-- [ ] Open `/app`.
-- [ ] Upload an image.
-- [ ] Wait for the result.
-- [ ] Check preview.
-- [ ] Check values, tables and text.
-- [ ] Copy or download Markdown.
-- [ ] Download PDF.
-- [ ] Delete the job.
-- [ ] Confirm the job disappears from the list.
-- [ ] Check for obvious console-visible UI errors when browser tools are
-  available.
+- [ ] Запустить приложение.
+- [ ] Открыть `/app`.
+- [ ] Загрузить изображение.
+- [ ] Дождаться результата.
+- [ ] Проверить предпросмотр.
+- [ ] Проверить значения, таблицы и текст.
+- [ ] Скопировать или скачать Markdown.
+- [ ] Скачать PDF.
+- [ ] Удалить задачу обработки.
+- [ ] Убедиться, что задача обработки исчезла из списка.
+- [ ] Если доступны браузерные инструменты, проверить отсутствие очевидных ошибок интерфейса, видимых в консоли.
 
-## 11. Before Commit
+## 11. Перед коммитом
 
-- [ ] Review `git status --short`.
-- [ ] Review the staged diff, not only the working tree diff.
-- [ ] Commit one coherent change at a time.
-- [ ] Do not commit ignored local reports, plans or tasks unless intentionally
-  tracking them.
-- [ ] Do not commit `data/`, `.env`, provider artifacts, generated outputs or
-  temporary files unless the task explicitly requires them.
-- [ ] Do not include unrelated refactors or formatting churn.
-- [ ] Do not commit secrets or local credentials.
+- [ ] Проверить `git status --short`.
+- [ ] Проверить подготовленный к коммиту diff, а не только diff рабочего дерева.
+- [ ] Коммитить по одному логически целостному изменению за раз.
+- [ ] Не коммитить игнорируемые локальные отчёты, планы или задачи, если их отслеживание явно не требуется.
+- [ ] Не коммитить `data/`, `.env`, артефакты провайдера, сгенерированные результаты или временные файлы, если задача явно этого не требует.
+- [ ] Не включать несвязанные рефакторинги или массовые изменения форматирования.
+- [ ] Не коммитить секреты или локальные учётные данные.
 
-## 12. Documentation Updates
+## 12. Обновление документации
 
-- [ ] Update `README.md` for run commands, configuration or user-facing behavior
-  changes.
-- [ ] Update `docs/PROJECT_CONTEXT.md` for accepted architecture, scope or MVP
-  baseline decisions.
-- [ ] Update `docs/LLM_MODEL_POLICY.md` for provider, model, prompt, schema or
-  media staging policy changes.
-- [ ] Update `docs/PROJECT_MAP.md` when public files, layers, ownership
-  boundaries or major surfaces are added, removed or renamed.
-- [ ] Keep docs aligned with current code and accepted project decisions.
-- [ ] Remove or rewrite stale claims when behavior changes.
-- [ ] Avoid documenting production deployment, auth, scheduled cleanup, generic
-  artifact explorer, raw/sanitized JSON UI or full PDF extraction input unless
-  those capabilities are explicitly implemented and accepted.
+- [ ] Обновлять `README.md` при изменении команд запуска, конфигурации или пользовательского поведения.
+- [ ] Обновлять `docs/PROJECT_CONTEXT.md` при изменении принятых архитектурных решений, рамок проекта или базового состояния MVP.
+- [ ] Обновлять `docs/LLM_MODEL_POLICY.md` при изменении провайдера, модели, промпта, схемы или политики подготовки медиафайлов.
+- [ ] Обновлять `docs/PROJECT_MAP.md` при добавлении, удалении или переименовании публичных файлов, уровней системы, границ ответственности или крупных функциональных областей.
+- [ ] Поддерживать документацию в соответствии с текущим кодом и принятыми решениями проекта.
+- [ ] Удалять или переписывать устаревшие утверждения при изменении поведения.
+- [ ] Не документировать промышленное развёртывание, аутентификацию, запланированную очистку, универсальный просмотрщик артефактов, интерфейс для необработанного/очищенного JSON или полноценное извлечение данных из PDF на входе, пока эти возможности явно не реализованы и не приняты.

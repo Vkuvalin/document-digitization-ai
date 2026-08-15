@@ -1,43 +1,41 @@
-# LLM Model Policy
+# Политика использования LLM-моделей
 
-## 1. Purpose
+## 1. Назначение
 
-This document governs the LLM/provider layer for the private/local MVP.
+Этот документ определяет правила работы слоя LLM и провайдеров для приватного локального MVP.
 
-Its goals are:
+Его цели:
 
-- protect correctness by keeping provider output behind backend validation;
-- protect privacy by making external provider/media use explicit;
-- preserve reproducibility for local development and tests;
-- keep prompt, schema, model and media-staging changes reviewable;
-- prevent provider/debug data from becoming normal user-facing output.
+- обеспечивать корректность, пропуская вывод провайдера через серверную валидацию;
+- защищать конфиденциальность, делая использование внешних провайдеров и сервисов размещения медиа явным;
+- сохранять воспроизводимость локальной разработки и тестов;
+- обеспечивать возможность проверки изменений промптов, схем, моделей и подготовки медиафайлов;
+- не допускать превращения данных провайдера и отладочной информации в обычный пользовательский вывод.
 
-This is not a prompt reference, API reference, marketing document or workflow
-replacement.
+Этот документ не является справочником по промптам, справочником API, маркетинговым документом или заменой описания рабочего процесса.
 
-## 2. Provider Modes
+## 2. Режимы провайдера
 
-Current provider modes are defined by `ExtractionProviderName`:
+Текущие режимы провайдера определяются `ExtractionProviderName`:
 
-- `fake`: deterministic local provider for default local runs and automated tests;
-- `openrouter`: real provider adapter using the OpenRouter-compatible OpenAI SDK path.
+- `fake`: детерминированный локальный провайдер для стандартных локальных запусков и автоматизированных тестов;
+- `openrouter`: адаптер реального провайдера, использующий совместимый с OpenRouter путь через OpenAI SDK.
 
-Safe default behavior:
+Безопасное поведение по умолчанию:
 
-- `.env.example` sets `EXTRACTION_PROVIDER=fake`;
-- `fake` does not require OpenRouter or ImgBB secrets;
-- default automated tests should not call real external providers;
-- failed real-provider setup must fail explicitly.
+- в `.env.example` задано `EXTRACTION_PROVIDER=fake`;
+- `fake` не требует секретов OpenRouter или ImgBB;
+- стандартные автоматизированные тесты не должны обращаться к реальным внешним провайдерам;
+- ошибка настройки реального провайдера должна приводить к явному завершению с ошибкой.
 
-Provider construction is owned by `src/document_digitization_ai/extraction/factory.py`.
-Unsupported provider names are rejected. There must be no hidden fallback from a
-failed `openrouter` path to `fake`.
+Создание провайдера выполняется в `src/document_digitization_ai/extraction/factory.py`.
+Неподдерживаемые имена провайдеров отклоняются. Не должно быть скрытого перехода с неудачно настроенного `openrouter` на `fake`.
 
-## 3. Configuration and Secrets
+## 3. Конфигурация и секреты
 
-Configuration starts from `.env.example`; real values belong in local `.env`.
+Конфигурация начинается с `.env.example`; реальные значения должны храниться в локальном `.env`.
 
-Provider settings:
+Настройки провайдера:
 
 - `EXTRACTION_PROVIDER`
 - `OPENROUTER_API_KEY`
@@ -52,7 +50,7 @@ Provider settings:
 - `LLM_STRUCTURED_OUTPUTS_REQUIRE_PARAMETERS`
 - `LLM_PROVIDER_SCHEMA_MODE`
 
-Media staging settings:
+Настройки подготовки медиафайлов:
 
 - `MEDIA_STAGING_BACKEND`
 - `IMGBB_API_KEY`
@@ -61,221 +59,207 @@ Media staging settings:
 - `MEDIA_STAGING_VERIFY_DOWNLOAD`
 - `MEDIA_STAGING_STRICT_VERIFY`
 
-Upload/storage settings relevant to provider flow:
+Настройки загрузки и хранения, относящиеся к работе провайдера:
 
 - `IMAGE_DIAGNOSTICS_MAX_FILE_SIZE_BYTES`
 - `STORAGE_UPLOADS_DIR`
 - `STORAGE_RESULTS_DIR`
 - `ARTIFACT_RETENTION_DAYS`
 
-Rules:
+Правила:
 
-- keep real secrets only in `.env`;
-- never commit `.env`, API keys, tokens or local credentials;
-- never copy secret values into reports, docs, tests, screenshots or fixtures;
-- placeholder values such as `change_me` may load for safe default local mode,
-  but real provider calls require non-placeholder OpenRouter and ImgBB settings;
-- update `.env.example` when adding or renaming provider/media config variables.
+- реальные секреты хранить только в `.env`;
+- никогда не коммитить `.env`, API-ключи, токены или локальные учётные данные;
+- никогда не копировать значения секретов в отчёты, документацию, тесты, снимки экрана или фикстуры;
+- значения-заглушки, например `change_me`, могут использоваться в безопасном локальном режиме по умолчанию, но реальные вызовы провайдера требуют настоящих настроек OpenRouter и ImgBB без значений-заглушек;
+- при добавлении или переименовании переменных конфигурации провайдера или подготовки медиафайлов обновлять `.env.example`.
 
-## 4. Media Staging Boundary
+## 4. Граница подготовки медиафайлов
 
-Current media staging modes are defined by `MediaStagingBackend`:
+Текущие режимы подготовки медиафайлов определяются `MediaStagingBackend`:
 
-- `none`: local/noop staging; returns a local file reference and performs no
-  external upload;
-- `imgbb`: uploads image bytes to ImgBB and returns a provider-facing public URL.
+- `none`: локальный режим без внешней загрузки; возвращает ссылку на локальный файл и не выполняет внешнюю отправку;
+- `imgbb`: загружает байты изображения в ImgBB и возвращает публичный URL, предназначенный для провайдера.
 
-OpenRouter visual extraction requires `PUBLIC_URL` staged media. A local file
-reference from `MEDIA_STAGING_BACKEND=none` is not valid for OpenRouter calls.
+Для визуального извлечения данных через OpenRouter требуется медиафайл с `PUBLIC_URL`. Ссылка на локальный файл при `MEDIA_STAGING_BACKEND=none` не подходит для вызовов OpenRouter.
 
-When `MEDIA_STAGING_BACKEND=imgbb` is used:
+При использовании `MEDIA_STAGING_BACKEND=imgbb`:
 
-- `IMGBB_API_KEY` is required;
-- uploaded document image bytes are sent to ImgBB;
-- the resulting public image URL can be sent to OpenRouter;
-- private cleanup/delete URLs must not be exposed as user-facing output;
-- staging URLs must not be copied into Markdown/PDF exports, tracked project docs or normal UI output.
+- требуется `IMGBB_API_KEY`;
+- байты загруженного изображения документа отправляются в ImgBB;
+- полученный публичный URL изображения может быть передан в OpenRouter;
+- приватные URL для очистки или удаления не должны попадать в пользовательский вывод;
+- URL промежуточно размещённых файлов не должны копироваться в экспорт Markdown/PDF, отслеживаемую документацию проекта или обычный вывод интерфейса.
 
-Web UI must not expose direct provider/media staging internals. Generated or
-staged artifacts must not be committed.
+Веб-интерфейс не должен раскрывать внутренние детали работы провайдера или подготовки медиафайлов. Сгенерированные или промежуточно размещённые артефакты не должны коммититься.
 
-## 5. Prompt and Schema Contract
+## 5. Контракт промпта и схемы
 
-Prompt and schema builders are part of the provider contract:
+Построители промпта и схемы являются частью контракта провайдера:
 
 - `src/document_digitization_ai/extraction/prompts.py`
 - `src/document_digitization_ai/extraction/schema.py`
 - `src/document_digitization_ai/extraction/openrouter.py`
 
-Current contract facts:
+Текущее состояние контракта:
 
-- prompt package version is `extraction_prompt_v0`;
-- target result schema is `extraction_result_v0`;
-- schema modes are `compact` and `full`;
-- structured output is expected for OpenRouter;
-- OpenRouter response format uses JSON schema with `strict: True`;
-- prompt and schema packages are deterministic and should not require secrets.
+- версия пакета промпта — `extraction_prompt_v0`;
+- целевая схема результата — `extraction_result_v0`;
+- режимы схемы — `compact` и `full`;
+- для OpenRouter ожидается структурированный вывод;
+- формат ответа OpenRouter использует JSON Schema с `strict: True`;
+- пакеты промптов и схем должны быть детерминированными и не должны требовать секретов.
 
-Prompt/schema policy:
+Правила для промптов и схем:
 
-- keep prompts narrow and aligned with the result schema;
-- do not casually broaden extraction scope;
-- preserve document-mode guidance as guidance, not truth;
-- preserve image diagnostics as quality guidance, not extracted content;
-- preserve field/table classification policy;
-- update targeted tests when prompt, schema or model behavior changes.
+- сохранять промпты узкими и согласованными со схемой результата;
+- не расширять область извлечения данных без необходимости;
+- сохранять указания режима документа именно как рекомендации, а не как источник истины;
+- использовать диагностику изображения как сведения о качестве, а не как извлечённое содержимое;
+- сохранять политику классификации полей и таблиц;
+- при изменении промпта, схемы или поведения модели обновлять целевые тесты.
 
-## 6. Validation and Reconstruction
+## 6. Валидация и реконструкция
 
-Provider output is untrusted until backend validation succeeds.
+Вывод провайдера считается недоверенным, пока серверная валидация не завершилась успешно.
 
-Validation and reconstruction live in:
+Валидация и реконструкция реализованы в:
 
 - `src/document_digitization_ai/extraction/validation.py`;
 - `src/document_digitization_ai/services/extraction_workflow.py`;
 - `src/document_digitization_ai/export/reconstruction.py`.
 
-Rules:
+Правила:
 
-- parse provider response through provider boundary types;
-- validate and normalize provider payload before treating it as accepted result;
-- failed validation must be explicit;
-- partial/malformed optional data may produce warnings;
-- substantively empty provider output must fail validation;
-- user-facing exports must be built from accepted/cleaned result, not raw
-  provider data.
+- разбирать ответ провайдера через типы, определённые на границе взаимодействия с провайдером;
+- валидировать и нормализовать данные провайдера до того, как считать их принятым результатом;
+- ошибка валидации должна быть явной;
+- частично заполненные или некорректные необязательные данные могут приводить к предупреждениям;
+- содержательно пустой вывод провайдера должен считаться ошибкой валидации;
+- пользовательский экспорт должен строиться из принятого и очищенного результата, а не из необработанных данных провайдера.
 
-Raw and sanitized provider artifacts may exist for internal/debug workflows, but
-they are not normal user-facing output.
+Необработанные и очищенные артефакты провайдера могут существовать для внутренних и отладочных сценариев, но не являются обычным пользовательским выводом.
 
-## 7. Model Variability
+## 7. Вариативность модели
 
-Real model extraction is not deterministic product truth.
+Результат извлечения данных реальной моделью не является детерминированной истиной продукта.
 
-Expected variability:
+Ожидаемая вариативность:
 
-- document classification may vary between runs or models;
-- values may appear as standalone fields or as table rows depending on provider
-  interpretation;
-- handwriting, noisy scans, low contrast and small text may remain uncertain;
-- confidence and warnings are guidance, not proof.
+- классификация документа может различаться между запусками или моделями;
+- значения могут появляться как отдельные поля или как строки таблицы в зависимости от интерпретации провайдера;
+- рукописный текст, шумные сканы, низкий контраст и мелкий текст могут оставаться неопределёнными;
+- уровень уверенности и предупреждения являются ориентирами, а не доказательством.
 
-The project uses table-derived review values to reduce user-facing inconsistency
-when important values are represented inside tables. This must not be removed
-casually when changing result review, field/table extraction or Web UI rendering.
+Проект использует значения для проверки, производные от таблиц, чтобы уменьшить несогласованность пользовательского результата, когда важные значения представлены внутри таблиц. Это поведение нельзя без необходимости удалять при изменении проверки результата, извлечения полей/таблиц или отображения веб-интерфейса.
 
-Do not document extraction as guaranteed deterministic except for the local
-`fake` provider path.
+Не следует описывать извлечение данных как гарантированно детерминированное, кроме локального режима с провайдером `fake`.
 
-## 8. User-Facing Output Boundary
+## 8. Граница пользовательского вывода
 
-User-facing surfaces:
+Пользовательские поверхности:
 
-- Web UI under `/app`;
-- JSON result API after backend validation;
-- Markdown export;
-- PDF export;
-- original upload preview/download through backend preview endpoint.
+- веб-интерфейс по адресу `/app`;
+- API JSON-результата после серверной валидации;
+- экспорт Markdown;
+- экспорт PDF;
+- предпросмотр/скачивание исходного загруженного файла через серверную конечную точку предпросмотра.
 
-Internal/debug-only surfaces:
+Внутренние и отладочные поверхности:
 
-- raw provider response artifacts;
-- sanitized provider response artifacts;
-- provider request/debug payloads;
-- prompt packages and schema packages;
-- extraction attempts and internal job/attempt metadata;
-- external media staging details and cleanup URLs.
+- артефакты необработанного ответа провайдера;
+- артефакты очищенного ответа провайдера;
+- данные запросов к провайдеру и отладочные данные;
+- пакеты промптов и схем;
+- попытки извлечения данных и внутренние метаданные задачи/попытки;
+- сведения о внешнем размещении медиа и URL для очистки.
 
-Default Markdown/PDF exports must not include:
+Экспорт Markdown/PDF по умолчанию не должен содержать:
 
 - `Extraction Metadata`;
-- provider/model/job/attempt debug metadata;
-- raw or sanitized provider payloads;
-- secrets, authorization headers or API key names with values;
-- local filesystem paths;
-- external media staging URLs.
+- отладочные метаданные провайдера, модели, задачи или попытки выполнения;
+- необработанные или очищенные данные провайдера;
+- секреты, заголовки авторизации или имена API-ключей вместе со значениями;
+- локальные пути файловой системы;
+- URL внешнего размещения медиа.
 
-## 9. External Smoke Policy
+## 9. Правила ручной проверки с реальным провайдером
 
-Real provider smoke is explicit and manual only.
+Базовая проверка реального провайдера запускается только явно и вручную.
 
-Current script:
+Текущий скрипт:
 
 ```powershell
 uv run python scripts/manual_provider_smoke.py --image path\to\sample.jpg
 ```
 
-Required gate and preconditions:
+Обязательный разрешающий флаг и предварительные условия:
 
 - `RUN_REAL_PROVIDER_SMOKE=1`;
 - `EXTRACTION_PROVIDER=openrouter`;
 - `MEDIA_STAGING_BACKEND=imgbb`;
 - `LLM_STRUCTURED_OUTPUTS_ENABLED=true`;
-- real `OPENROUTER_API_KEY`;
-- non-placeholder `OPENROUTER_MODEL`;
-- real `IMGBB_API_KEY`;
-- local image path that points to an existing file.
+- настоящий `OPENROUTER_API_KEY`;
+- `OPENROUTER_MODEL` без значения-заглушки;
+- настоящий `IMGBB_API_KEY`;
+- локальный путь к существующему файлу изображения.
 
-Rules:
+Правила:
 
-- do not run paid/network provider calls casually;
-- do not include real-provider smoke in default automated validation;
-- fake-provider tests are necessary but not a substitute for explicit real
-  provider smoke when changing provider/media behavior;
-- smoke output must remain redacted when printed or summarized.
+- не выполнять платные или сетевые вызовы провайдера без необходимости;
+- не включать проверку реального провайдера в стандартную автоматизированную валидацию;
+- тесты с `fake`-провайдером необходимы, но не заменяют явную проверку реального провайдера при изменении поведения провайдера или подготовки медиа;
+- вывод проверки при печати или кратком описании должен оставаться очищенным от чувствительных данных.
 
-## 10. Sensitive Data Rules
+## 10. Правила работы с чувствительными данными
 
-Uploaded documents may contain sensitive information.
+Загруженные документы могут содержать чувствительную информацию.
 
-External exposure must be intentional:
+Передача данных внешним сервисам должна быть осознанной:
 
-- ImgBB receives uploaded image bytes when `MEDIA_STAGING_BACKEND=imgbb`;
-- OpenRouter receives the public image URL plus prompt/schema instructions and
-  provider context needed for extraction;
-- extracted text and structured payloads may contain document content.
+- ImgBB получает байты загруженного изображения при `MEDIA_STAGING_BACKEND=imgbb`;
+- OpenRouter получает публичный URL изображения, инструкции промпта/схемы и необходимый для извлечения контекст провайдера;
+- извлечённый текст и структурированные данные могут содержать содержимое документа.
 
-Rules:
+Правила:
 
-- do not log full secrets;
-- do not paste raw provider payloads into docs or reports;
-- do not expose raw/sanitized artifacts in UI;
-- do not share external media/provider URLs as user-facing outputs;
-- do not expose local absolute paths in API responses, exports or UI;
-- redact secrets, URLs and raw document text in manual smoke summaries.
+- не записывать полные секреты в журналы;
+- не вставлять необработанные данные провайдера в документацию или отчёты;
+- не выводить необработанные или очищенные артефакты в интерфейсе;
+- не показывать внешние URL медиафайлов или провайдера как пользовательский результат;
+- не раскрывать локальные абсолютные пути в ответах API, экспортируемых данных или интерфейсе;
+- скрывать секреты, URL и необработанный текст документа в сводках ручной проверки.
 
-## 11. Change Control
+## 11. Контроль изменений
 
-Extra care is required for changes to:
+Особая осторожность требуется при изменении:
 
-- provider adapter construction or error mapping;
-- model name, provider selection or OpenRouter settings;
-- prompt text or prompt package metadata;
-- schema modes, required sections or JSON schema generation;
-- validation/reconstruction behavior;
-- media staging backend, TTL or public URL handling;
-- export boundary and user-facing output sections;
-- table-derived values and result review payloads.
+- создания адаптера провайдера или преобразования ошибок;
+- имени модели, выбора провайдера или настроек OpenRouter;
+- текста промпта или метаданных пакета промпта;
+- режимов схемы, обязательных разделов или генерации JSON Schema;
+- поведения валидации/реконструкции;
+- механизма подготовки медиафайлов, TTL или обработки публичных URL;
+- границы экспорта и разделов пользовательского вывода;
+- значений, производных от таблиц, и данных для проверки результата.
 
-For these changes:
+Для таких изменений необходимо:
 
-- add or update targeted tests;
-- run relevant validation commands;
-- run manual browser/export checks when UI or export surfaces change;
-- run manual real-provider smoke only when explicitly intended and safe;
-- update `README.md`, `docs/PROJECT_CONTEXT.md`,
-  `docs/DEVELOPMENT_CHECKLIST.md`, this policy or `docs/PROJECT_MAP.md` when
-  behavior or boundaries change.
+- добавлять или обновлять целевые тесты;
+- запускать соответствующие команды проверки;
+- выполнять ручные проверки браузера/экспорта при изменении интерфейса или экспортируемых данных;
+- запускать ручную проверку реального провайдера только тогда, когда это явно требуется и безопасно;
+- обновлять `README.md`, `docs/PROJECT_CONTEXT.md`,
+  `docs/DEVELOPMENT_CHECKLIST.md`, данный документ или `docs/PROJECT_MAP.md`, если меняются поведение или границы системы.
 
-## 12. Known Limitations
+## 12. Известные ограничения
 
-- Extraction quality depends on source image quality.
-- Handwriting and noisy scans may remain uncertain.
-- Provider classification and field/table grouping can vary.
-- PDF export exists, but PDF extraction input is not guaranteed.
-- There is no production privacy/security hardening.
-- There is no auth, account model or multi-user isolation.
-- There is no automatic provider quality monitoring.
-- There is no automatic scheduled provider smoke.
-- Default automated tests rely on fakes, injected transports and env gates
-  rather than a global no-network blocker.
+- Качество извлечения данных зависит от качества исходного изображения.
+- Рукописный текст и шумные сканы могут оставаться неопределёнными.
+- Классификация провайдера и группировка полей/таблиц могут различаться.
+- Экспорт PDF поддерживается, но извлечение данных из PDF на входе не гарантируется.
+- Нет усиленной защиты конфиденциальности и безопасности уровня промышленной эксплуатации.
+- Нет аутентификации, модели учётных записей или изоляции нескольких пользователей.
+- Нет автоматического контроля качества провайдера.
+- Нет автоматической проверки реального провайдера по расписанию.
+- Стандартные автоматизированные тесты используют `fake`-провайдеры, внедряемые транспортные механизмы и разрешающие флаги переменных окружения вместо глобального запрета сетевых обращений.
