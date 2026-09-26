@@ -1,13 +1,6 @@
 # Secrets / local runtime config
-.env
-.env.*
-!.env.example
 
 # Private Codex / agentic workflow overlay
-AGENTS.md
-.agents/
-.codex/
-docs/codex/
 
 # Python / uv
 __pycache__/
@@ -23,7 +16,6 @@ build/
 
 # OS / IDE
 .DS_Store
-.idea/
 .vscode/
 
 # Общее
@@ -33,3 +25,23 @@ logs/
 *.sqlite
 *.sqlite3
 *.db
+
+# BEGIN MANAGED UNIVERSAL IGNORE RULES
+# Centrally synchronized universal privacy/safety rules.
+# Do not add stack-specific or project-specific patterns to this block.
+
+# Universal secrets
+.env
+.env.*
+!.env.example
+
+# Local IDE
+.idea/
+
+# Agent workflow infrastructure
+docs/codex/
+.agents/
+.codex/
+AGENTS.md
+
+# END MANAGED UNIVERSAL IGNORE RULES
