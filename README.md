@@ -46,9 +46,7 @@ SaaS-сервис для промышленной эксплуатации. READ
 
 
 
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/f7e7088c-a4dc-4b42-a4dd-315fe2dd53e6"/>
-</p>
+[![Миниатюра](https://raw.githubusercontent.com/username/repo/branch/path/to/thumbnail.jpg)](https://github.com/user-attachments/assets/f7e7088c-a4dc-4b42-a4dd-315fe2dd53e6)
 
 <p align="center">
   <img src="./images/1.png" alt="Общая концепция DocuStruct AI" width="960"><br>
