@@ -46,8 +46,8 @@ SaaS-сервис для промышленной эксплуатации. READ
 
 
 <p align="center">
-  ![Процесс](<img width="1340" height="720" alt="1111" src="https://github.com/user-attachments/assets/3e17b304-5e1e-4088-a476-32139abd2eaf" />)
-  <sub>1. Общее позиционирование: от документа к структурированному результату.</sub>
+  <img width="1340" height="720" alt="1111" src="https://github.com/user-attachments/assets/3e17b304-5e1e-4088-a476-32139abd2eaf" />
+  <sub>Процесс</sub>
 </p>
 
 <p align="center">
