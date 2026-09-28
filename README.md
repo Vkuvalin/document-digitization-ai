@@ -1,3 +1,7 @@
+
+
+
+
 <p align="center">
   <img src="./images/icon.png" alt="DocuStruct AI" width="128">
 </p>
@@ -43,7 +47,7 @@ SaaS-сервис для промышленной эксплуатации. READ
 
 
 <p align="center">
-  <a href="https://ibb.co/MxJxZrCj"><img src="https://i.ibb.co/S4Z45b31/2026-09-28-160104-compressed-online-video-cutter-com-1.gif" alt="2026-09-28-160104-compressed-online-video-cutter-com-1" border="0" /></a>
+  <img src="https://github.com/user-attachments/assets/f7e7088c-a4dc-4b42-a4dd-315fe2dd53e6"/>
 </p>
 
 <p align="center">
