@@ -45,8 +45,10 @@ SaaS-сервис для промышленной эксплуатации. READ
 > следующих разделах README.
 
 
-
-[![Миниатюра](https://raw.githubusercontent.com/username/repo/branch/path/to/thumbnail.jpg)](https://github.com/user-attachments/assets/f7e7088c-a4dc-4b42-a4dd-315fe2dd53e6)
+<p align="center">
+  ![Процесс](<img width="1340" height="720" alt="1111" src="https://github.com/user-attachments/assets/3e17b304-5e1e-4088-a476-32139abd2eaf" />)
+  <sub>1. Общее позиционирование: от документа к структурированному результату.</sub>
+</p>
 
 <p align="center">
   <img src="./images/1.png" alt="Общая концепция DocuStruct AI" width="960"><br>
