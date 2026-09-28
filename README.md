@@ -43,7 +43,7 @@ SaaS-сервис для промышленной эксплуатации. READ
 
 
 <p align="center">
-  ![Процесс](https://ibb.co/MxJxZrCj)
+  <a href="https://ibb.co/MxJxZrCj"><img src="https://i.ibb.co/S4Z45b31/2026-09-28-160104-compressed-online-video-cutter-com-1.gif" alt="2026-09-28-160104-compressed-online-video-cutter-com-1" border="0" /></a>
 </p>
 
 <p align="center">
