@@ -45,12 +45,8 @@ SaaS-сервис для промышленной эксплуатации. READ
 > следующих разделах README.
 
 
+[Смотреть видео](https://github.com/user-attachments/assets/b0e8d335-2986-4725-a828-bea599744766)
 
-
-<p align="center">
-  [Смотреть видео](https://github.com/user-attachments/assets/b0e8d335-2986-4725-a828-bea599744766)
-  <sub>Процесс</sub>
-</p>
 
 <p align="center">
   <img src="./images/1.png" alt="Общая концепция DocuStruct AI" width="960"><br>
