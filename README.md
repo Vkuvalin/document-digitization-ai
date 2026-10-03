@@ -45,8 +45,10 @@ SaaS-сервис для промышленной эксплуатации. READ
 > следующих разделах README.
 
 
+
+
 <p align="center">
-  <img width="1340" height="720" alt="1111" src="https://github.com/user-attachments/assets/3e17b304-5e1e-4088-a476-32139abd2eaf" />
+  [Смотреть видео](https://github.com/user-attachments/assets/b0e8d335-2986-4725-a828-bea599744766)
   <sub>Процесс</sub>
 </p>
 
