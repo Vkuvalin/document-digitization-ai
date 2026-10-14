@@ -155,6 +155,30 @@ def test_web_ui_static_serving_under_app_keeps_api_routes_clean(
     assert facade.calls == []
 
 
+def test_web_ui_favicon_is_served_for_explicit_and_browser_fallback_requests(
+    tmp_path: Path,
+) -> None:
+    facade = FakeDocumentFacade()
+    client = _client(tmp_path, facade)
+
+    page = client.get("/app/")
+    favicon = client.get("/app/favicon.svg")
+    fallback_redirect = client.get("/favicon.ico", follow_redirects=False)
+    fallback = client.get("/favicon.ico")
+
+    assert page.status_code == 200
+    assert '<link rel="icon" href="./favicon.svg" type="image/svg+xml" />' in page.text
+    assert favicon.status_code == 200
+    assert "image/svg+xml" in favicon.headers["content-type"]
+    assert favicon.content
+    assert fallback_redirect.status_code == 307
+    assert fallback_redirect.headers["location"] == "/app/favicon.svg"
+    assert fallback.status_code == 200
+    assert fallback.content == favicon.content
+    assert "/favicon.ico" not in client.get("/openapi.json").json()["paths"]
+    assert facade.calls == []
+
+
 def test_upload_endpoint_passes_file_to_facade(tmp_path: Path) -> None:
     facade = FakeDocumentFacade()
     client = _client(tmp_path, facade)

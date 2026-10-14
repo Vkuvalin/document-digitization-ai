@@ -79,6 +79,10 @@ def _mount_web_ui(app: FastAPI) -> None:
     async def web_ui_index() -> RedirectResponse:
         return RedirectResponse(url="/app/", status_code=307)
 
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon() -> RedirectResponse:
+        return RedirectResponse(url="/app/favicon.svg", status_code=307)
+
     app.mount(
         "/app",
         StaticFiles(directory=_WEB_STATIC_DIR, html=True),
