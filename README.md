@@ -43,39 +43,39 @@ SaaS-сервис для промышленной эксплуатации. READ
 ## Изображения
 
 <p align="center"> 
-  <img src="https://github.com/user-attachments/assets/3324fc3a-c286-43a4-a30a-3d1bd629e2ee" alt="1" width="100%" /> 
+  <img src="https://github.com/user-attachments/assets/2ec1e351-f191-4005-9a9a-f0ec317bfbdc" alt="1" width="100%" /> 
 </p>
 
 <p align="center"> 
-  <img src="https://github.com/user-attachments/assets/5f1a6041-5685-4640-be3f-6729a5154261" alt="2" width="100%" />
+  <img src="https://github.com/user-attachments/assets/239ae937-2e1b-41e3-b2fe-ac9014a0b0b3" alt="2" width="100%" />
 </p>
 
 <p align="center"> 
-  <img src="https://github.com/user-attachments/assets/f1aa3e5d-8b39-4f1a-beb5-ff67c7a3ea64" alt="3" width="100%" /> 
+  <img src="https://github.com/user-attachments/assets/f8ac03bd-1273-4db4-b503-42efb0e5c7e5" alt="3" width="100%" /> 
 </p>
 
 <p align="center"> 
-  <img src="https://github.com/user-attachments/assets/bcbce4ab-63f1-43a3-9bd3-f24f76f0f177" alt="4" width="100%" />
+  <img src="https://github.com/user-attachments/assets/1691baf7-b3b9-4918-bcc8-1183f6ded104" alt="4" width="100%" />
 </p>
 
 <p align="center"> 
-  <img src="https://github.com/user-attachments/assets/eeebb6d6-ad72-4b17-9f5f-a8a4edbf3f17" alt="5" width="100%" />
+  <img src="https://github.com/user-attachments/assets/4daee3fc-7dce-4832-92e5-4c0457c47587" alt="5" width="100%" />
 </p>
 
 <p align="center"> 
-  <img src="https://github.com/user-attachments/assets/7541c560-b0c4-4e9d-84f3-bf2dd822e6d8" alt="6" width="100%" />
+  <img src="https://github.com/user-attachments/assets/575d3d74-e0a5-4fa4-a321-589cd82707a5" alt="6" width="100%" />
 </p>
 
 <p align="center"> 
-  <img src="https://github.com/user-attachments/assets/efe68f8f-0bf7-4a38-bb89-6c0163aaca80" alt="7" width="100%" /> 
+  <img src="https://github.com/user-attachments/assets/854bd249-4c87-4f71-b4c4-bbe9ad4bfb69" alt="7" width="100%" /> 
 </p>
 
 <p align="center"> 
-  <img src="https://github.com/user-attachments/assets/395a14e4-5887-42ca-bd69-ddebd7dcf4c8" alt="8" width="100%" /> 
+  <img src="https://github.com/user-attachments/assets/bfe93e50-52f0-4b51-83ed-38c8ea103397" alt="8" width="100%" /> 
 </p>
 
 <p align="center"> 
-  <img src="https://github.com/user-attachments/assets/c9279842-9046-4732-bf14-eeee61b4b191" alt="test_blank_1" width="100%" /> 
+  <img src="https://github.com/user-attachments/assets/8cd54c9b-47a7-4aa6-91be-31bb6f004864" alt="test_blank_1" width="100%" /> 
 </p>
 
 [analysis_e460bae08936.pdf](https://github.com/user-attachments/files/33989430/analysis_e460bae08936.pdf)
