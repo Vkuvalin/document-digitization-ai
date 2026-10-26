@@ -47,7 +47,7 @@ SaaS-сервис для промышленной эксплуатации. READ
 </p>
 
 <p align="center"> 
-  <img src="https://github.com/user-attachments/assets/239ae937-2e1b-41e3-b2fe-ac9014a0b0b3" alt="2" width="100%" />
+  <img src="https://github.com/user-attachments/assets/9a57e61e-ca99-429d-9ec9-847d133cbb0f" alt="2" width="100%" />
 </p>
 
 <p align="center"> 
@@ -79,6 +79,9 @@ SaaS-сервис для промышленной эксплуатации. READ
 </p>
 
 [analysis_e460bae08936.pdf](https://github.com/user-attachments/files/33989430/analysis_e460bae08936.pdf)
+
+[e460bae0893642e2bc09e0a3b8e4593c.md](https://github.com/user-attachments/files/33990173/e460bae0893642e2bc09e0a3b8e4593c.md)
+
 
 
 ## Возможности MVP
