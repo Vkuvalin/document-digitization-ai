@@ -42,23 +42,41 @@ SaaS-сервис для промышленной эксплуатации. READ
 
 ## Изображения
 
-<p align="center"> <img src="https://github.com/user-attachments/assets/3324fc3a-c286-43a4-a30a-3d1bd629e2ee" alt="1" width="100%" /> </p>
+<p align="center"> 
+  <img src="https://github.com/user-attachments/assets/3324fc3a-c286-43a4-a30a-3d1bd629e2ee" alt="1" width="100%" /> 
+</p>
 
-<p align="center"> <img src="https://github.com/user-attachments/assets/5f1a6041-5685-4640-be3f-6729a5154261" alt="2" width="100%" /> </p>
+<p align="center"> 
+  <img src="https://github.com/user-attachments/assets/5f1a6041-5685-4640-be3f-6729a5154261" alt="2" width="100%" />
+</p>
 
-<p align="center"> <img src="https://github.com/user-attachments/assets/f1aa3e5d-8b39-4f1a-beb5-ff67c7a3ea64" alt="3" width="100%" /> </p>
+<p align="center"> 
+  <img src="https://github.com/user-attachments/assets/f1aa3e5d-8b39-4f1a-beb5-ff67c7a3ea64" alt="3" width="100%" /> 
+</p>
 
-<p align="center"> <img src="https://github.com/user-attachments/assets/bcbce4ab-63f1-43a3-9bd3-f24f76f0f177" alt="4" width="100%" /> </p>
+<p align="center"> 
+  <img src="https://github.com/user-attachments/assets/bcbce4ab-63f1-43a3-9bd3-f24f76f0f177" alt="4" width="100%" />
+</p>
 
-<p align="center"> <img src="https://github.com/user-attachments/assets/eeebb6d6-ad72-4b17-9f5f-a8a4edbf3f17" alt="5" width="100%" /> </p>
+<p align="center"> 
+  <img src="https://github.com/user-attachments/assets/eeebb6d6-ad72-4b17-9f5f-a8a4edbf3f17" alt="5" width="100%" />
+</p>
 
-<p align="center"> <img src="https://github.com/user-attachments/assets/7541c560-b0c4-4e9d-84f3-bf2dd822e6d8" alt="6" width="100%" /> </p>
+<p align="center"> 
+  <img src="https://github.com/user-attachments/assets/7541c560-b0c4-4e9d-84f3-bf2dd822e6d8" alt="6" width="100%" />
+</p>
 
-<p align="center"> <img src="https://github.com/user-attachments/assets/efe68f8f-0bf7-4a38-bb89-6c0163aaca80" alt="7" width="100%" /> </p>
+<p align="center"> 
+  <img src="https://github.com/user-attachments/assets/efe68f8f-0bf7-4a38-bb89-6c0163aaca80" alt="7" width="100%" /> 
+</p>
 
-<p align="center"> <img src="https://github.com/user-attachments/assets/395a14e4-5887-42ca-bd69-ddebd7dcf4c8" alt="8" width="100%" /> </p>
+<p align="center"> 
+  <img src="https://github.com/user-attachments/assets/395a14e4-5887-42ca-bd69-ddebd7dcf4c8" alt="8" width="100%" /> 
+</p>
 
-<p align="center"> <img src="https://github.com/user-attachments/assets/c9279842-9046-4732-bf14-eeee61b4b191" alt="test_blank_1" width="100%" /> </p>
+<p align="center"> 
+  <img src="https://github.com/user-attachments/assets/c9279842-9046-4732-bf14-eeee61b4b191" alt="test_blank_1" width="100%" /> 
+</p>
 
 [analysis_e460bae08936.pdf](https://github.com/user-attachments/files/33989430/analysis_e460bae08936.pdf)
 
